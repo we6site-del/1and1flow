@@ -20,6 +20,9 @@ backend/.env
 frontend/.env
 frontend/.env.local
 
+# Legacy / Archive
+frontend_legacy/
+
 # Frontend
 frontend/node_modules/
 frontend/.next/
