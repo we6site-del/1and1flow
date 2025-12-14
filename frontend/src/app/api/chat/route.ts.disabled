@@ -1,0 +1,90 @@
+import { openai } from "@ai-sdk/openai";
+import { streamText } from "ai";
+import { z } from "zod";
+import { createClient } from "@/utils/supabase/server";
+import { toolDefinitions, agentTools } from "@/lib/agent/tools";
+
+export const maxDuration = 30;
+
+async function getModelContext() {
+    try {
+        const supabase = await createClient();
+        const { data } = await supabase
+            .from("ai_models")
+            .select("id, name, type, cost_per_gen, parameters_schema")
+            .eq("is_active", true)
+            .order("type")
+            .order("name");
+
+        if (!data) return "";
+
+        const context = data.map(model => {
+            const params = (model.parameters_schema || []).map((p: any) => {
+                const options = p.options?.map((opt: any) => opt.value || opt.label).join(", ") || "";
+                return `  - ${p.key} (${p.type}): ${p.label}${options ? ` - Options: ${options}` : ""}${p.default ? ` - Default: ${p.default}` : ""}`;
+            }).join("\n");
+
+            return `**${model.name}** (${model.type}, ${model.cost_per_gen} credits):
+${params || "  - No parameters"}`;
+        }).join("\n\n");
+
+        return `\n\n**Available AI Models and Parameters:**
+${context}
+
+**Instructions:**
+- When the user asks to generate content, use the create_ai_node tool with appropriate model_id.
+- If they want a "longer video", use models with duration parameters and set higher values.
+- If they want specific aspect ratios, use models that support aspect_ratio parameters.
+- Always mention the credit cost when suggesting a model.`;
+    } catch (error) {
+        console.error("Error fetching model context:", error);
+        return "";
+    }
+}
+
+export async function POST(req: Request) {
+    const { messages } = await req.json();
+
+    // Fetch model context for dynamic injection
+    const modelContext = await getModelContext();
+
+    const result = await streamText({
+        model: openai("gpt-4o") as any,
+        messages,
+        system: `You are a Senior Fashion Designer Assistant named "Lovart Copilot".
+    Your goal is to help the user design clothing collections on an infinite canvas.
+    
+    **Guidelines**:
+    - Use professional fashion terminology (e.g., silhouette, drape, fabric weight, color theory).
+    - Be concise and actionable.
+    - If the user asks for feedback, analyze the prompt or context (simulated) and offer constructive critique on balance, proportion, and marketability.
+    - When the user wants to create, modify, or interact with canvas nodes, USE THE TOOLS. Don't just describe what you would do.
+    - Always use tools to perform actions on the canvas. Tools are your way to interact with the canvas.
+    ${modelContext}`,
+        tools: {
+            create_ai_node: {
+                description: agentTools.create_ai_node.description,
+                parameters: agentTools.create_ai_node.parameters,
+            },
+            update_node_settings: {
+                description: agentTools.update_node_settings.description,
+                parameters: agentTools.update_node_settings.parameters,
+            },
+            analyze_canvas: {
+                description: agentTools.analyze_canvas.description,
+                parameters: agentTools.analyze_canvas.parameters,
+            },
+            generate_content: {
+                description: agentTools.generate_content.description,
+                parameters: agentTools.generate_content.parameters,
+            },
+            delete_node: {
+                description: agentTools.delete_node.description,
+                parameters: agentTools.delete_node.parameters,
+            },
+        },
+        maxSteps: 5, // Allow multi-step tool calls
+    });
+
+    return result.toDataStreamResponse();
+}
