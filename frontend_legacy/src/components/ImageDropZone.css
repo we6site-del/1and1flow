@@ -1,0 +1,81 @@
+.image-drop-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.image-drop-zone.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.image-drop-zone.processing {
+  opacity: 1;
+  pointer-events: all;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.drop-zone-content {
+  position: absolute;
+  inset: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  border: 3px dashed #666;
+  gap: 16px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    border-color: #666;
+  }
+  50% {
+    border-color: #999;
+  }
+}
+
+.drop-zone-content svg {
+  color: #666;
+}
+
+.drop-zone-content h3 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.drop-zone-content p {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+.image-drop-zone.processing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-drop-zone.processing .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.image-drop-zone.processing p {
+  color: #fff;
+  font-size: 18px;
+  margin-top: 24px;
+}

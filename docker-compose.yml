@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lovart-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lovart-frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env
+    environment:
+      # If running in Docker, localhost refers to the container itself. 
+      # For browser access (client-side), localhost is fine if specific ports are exposed.
+      # But for SSR (server-side), Frontend container needs to reach Backend container.
+      # We usually use the service name 'backend' for SSR, but 'localhost' for client-side.
+      # This duality often requires public env vars for client and internal for server.
+      # For simplicity here, we assume client-side access mainly.
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: always
+
+# Define networks if needed, automagically created 'default' is usually fine.

@@ -1,0 +1,53 @@
+# General
+.DS_Store
+*.log
+tmp/
+temp/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables (Sensitive Data)
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/build/
+frontend/dist/
+frontend/.vercel/
+frontend/*.tsbuildinfo
+
+# Backend
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+backend/instance/
+backend/.pytest_cache/
+backend/coverage/
+backend/htmlcov/
+backend/celerybeat-schedule
+
+# Logs
+debug.log
+debug_gen.log
+backend.log
+backend_error.log
+generation_errors.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS
+Thumbs.db

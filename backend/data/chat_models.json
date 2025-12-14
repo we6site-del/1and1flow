@@ -1,0 +1,57 @@
+[
+    {
+        "id": "claude-3-haiku-free",
+        "name": "Claude 3 Haiku (Free)",
+        "type": "CHAT",
+        "provider": "OPENROUTER",
+        "api_path": "anthropic/claude-3-haiku:free",
+        "cost_per_gen": 0,
+        "is_active": true,
+        "priority": 1,
+        "description": "Fast and reliable free Claude model"
+    },
+    {
+        "id": "llama-3.1-8b-free",
+        "name": "Llama 3.1 8B (Free)",
+        "type": "CHAT",
+        "provider": "OPENROUTER",
+        "api_path": "meta-llama/llama-3.1-8b-instruct:free",
+        "cost_per_gen": 0,
+        "is_active": true,
+        "priority": 2,
+        "description": "Fast open-source model"
+    },
+    {
+        "id": "gemini-2.0-flash-exp",
+        "name": "Gemini 2.0 Flash (Free)",
+        "type": "CHAT",
+        "provider": "OPENROUTER",
+        "api_path": "google/gemini-2.0-flash-exp:free",
+        "cost_per_gen": 0,
+        "is_active": true,
+        "priority": 3,
+        "description": "Google's latest 2.0 experimental model"
+    },
+    {
+        "id": "glm-4-air-free",
+        "name": "GLM 4 Air (Free)",
+        "type": "CHAT",
+        "provider": "OPENROUTER",
+        "api_path": "z-ai/glm-4.5-air:free",
+        "cost_per_gen": 0,
+        "is_active": true,
+        "priority": 4,
+        "description": "Fast and free GLM model"
+    },
+    {
+        "id": "glm-4.6v",
+        "name": "GLM 4.6V (Vision)",
+        "type": "CHAT",
+        "provider": "OPENROUTER",
+        "api_path": "z-ai/glm-4.6v",
+        "cost_per_gen": 0,
+        "is_active": true,
+        "priority": 5,
+        "description": "Zhipu AI's latest GLM-4.6 Vision model"
+    }
+]
