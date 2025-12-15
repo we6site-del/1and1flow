@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Paperclip, AtSign, Globe, Zap, Image as ImageIcon, X, ArrowUp, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TooltipButton } from "../LovartSidebar"; // Will need to export this or recreate it
+// import { TooltipButton } from "../LovartSidebar"; // Removed to fix build error
 // Recreating TooltipButton for isolation
 const IconButton = ({ icon: Icon, label, onClick, isActive }: { icon: any, label: string, onClick?: () => void, isActive?: boolean }) => (
     <div className="relative group">
