@@ -1,6 +1,10 @@
 "use client";
 
-import { Tldraw, useEditor } from "tldraw";
+import { toast } from "sonner";
+import {
+    Tldraw,
+    type Editor,
+} from "tldraw";
 import "tldraw/tldraw.css";
 import { AiNodeShapeUtil } from "./shapes/AiNodeShape";
 import { useFlowLogic } from "@/hooks/useFlowLogic";
