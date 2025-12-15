@@ -285,7 +285,7 @@ certbot --nginx -d your-domain.com -d www.your-domain.com
 *   **代码更新**:
     1.  `git pull`
     2.  后端: `pm2 restart backend`
-    3.  前端: `cd frontend && npm install && npm run build && pm2 restart frontend`
+    3.  前端: `cd frontend && npm install --legacy-peer-deps && npm run build && pm2 restart frontend`
 
 ## 9. 常见问题排查
 

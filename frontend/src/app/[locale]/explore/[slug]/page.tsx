@@ -16,7 +16,7 @@ interface PageProps {
 async function getGenerationBySlug(slug: string) {
     // Fetch from backend API (which wraps Supabase logic)
     // Or simpler for server component: use Supabase client directly
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from("generations")
         .select("*, profiles(username, avatar_url)")

@@ -36,25 +36,32 @@ export default function ProjectGrid() {
     const scrollPrev = () => emblaApi && emblaApi.scrollPrev();
     const scrollNext = () => emblaApi && emblaApi.scrollNext();
 
-    interface Project {
-        id: string;
-        name: string;
-        thumbnail_url?: string | null;
-        updated_at: string;
-        media_type?: 'image' | 'video' | null;
-        mediaUrl?: string | null;
-        mediaType?: 'image' | 'video' | null;
-    }
-
     useEffect(() => {
         const fetchProjects = async () => {
+            console.log("--- ProjectGrid Debug Start (API Mode) ---");
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            console.log("Current Auth User:", user?.id, user?.email);
+
+            if (!user) {
+                console.log("No user found, aborting fetch.");
+                return;
+            }
 
             try {
+                console.log("Fetching via API: /api/projects?user_id=" + user.id);
                 const res = await fetch(`/api/projects?user_id=${user.id}`);
-                if (res.ok) {
-                    const data = await res.json();
+
+                if (!res.ok) {
+                    console.error("API Error:", res.status, res.statusText);
+                    const text = await res.text();
+                    console.error("API Response:", text);
+                    return;
+                }
+
+                const data = await res.json();
+                console.log("API Data received:", data);
+
+                if (data) {
                     // Map API response to component state
                     const mappedProjects = data.map((p: any) => ({
                         id: p.id,
@@ -62,7 +69,6 @@ export default function ProjectGrid() {
                         thumbnail_url: p.thumbnail_url,
                         updated_at: p.updated_at,
                         media_type: p.media_type,
-                        // Compatibility for existing render logic
                         mediaUrl: p.thumbnail_url,
                         mediaType: p.media_type
                     }));
