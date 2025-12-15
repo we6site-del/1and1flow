@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import {
     Tldraw,
+    useEditor,
     type Editor,
 } from "tldraw";
 import "tldraw/tldraw.css";
