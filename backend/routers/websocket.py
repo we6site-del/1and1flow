@@ -14,6 +14,7 @@ websocket_server = WebsocketServer(auto_clean_rooms=True)
 class FastAPIWebsocketAdapter:
     def __init__(self, websocket: WebSocket):
         self._ws = websocket
+        logger.info(f"DEBUG: Adapter init. Path: {self.path}")
 
     @property
     def path(self) -> str:
@@ -24,20 +25,36 @@ class FastAPIWebsocketAdapter:
         return self._ws.query_params
 
     async def send(self, message):
+        # logger.info(f"DEBUG: Adapter send type={type(message)}")
         if isinstance(message, bytes):
+            # logger.info(f"DEBUG: Adapter sending bytes len={len(message)}")
             await self._ws.send_bytes(message)
         elif isinstance(message, str):
+            # logger.info(f"DEBUG: Adapter sending str len={len(message)}")
             await self._ws.send_text(message)
 
     async def recv(self):
-        message = await self._ws.receive()
+        try:
+            message = await self._ws.receive()
+            # logger.info(f"DEBUG: Adapter receive raw msg keys={message.keys() if isinstance(message, dict) else '?'}")
+        except Exception as e:
+            logger.error(f"DEBUG: Adapter receive error: {e}")
+            raise e
+
         if "bytes" in message:
             return message["bytes"]
         elif "text" in message:
             return message["text"]
+        elif message.get("type") == "websocket.disconnect":
+            logger.info("DEBUG: Adapter received websocket.disconnect")
+            # Returning empty bytes signals EOF to ypy-websocket usually
+            return b""
+            
+        logger.warning(f"DEBUG: Adapter received unknown message type: {message}")
         return b""
 
     async def close(self):
+        logger.info("DEBUG: Adapter executing close()")
         await self._ws.close()
 
 @router.websocket("/ws/{room_id}")
