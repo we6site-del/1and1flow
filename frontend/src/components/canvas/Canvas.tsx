@@ -295,20 +295,19 @@ export default function Canvas({ projectId }: { projectId?: string }) {
 
     const locale = useLocale();
 
-    const [hostUrl, setHostUrl] = useState<string>("");
-
-    useEffect(() => {
+    const [hostUrl, setHostUrl] = useState<string>(() => {
         if (typeof window !== "undefined") {
             // For local development, connect directly to backend port 8000 to avoid Next.js proxy issues with WS
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                setHostUrl('ws://127.0.0.1:8000/api/ws');
+                return 'ws://127.0.0.1:8000/api/ws';
             } else {
                 // Production: Use relative path (Nginx will handle proxy)
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                setHostUrl(`${protocol}//${window.location.host}/api/ws`);
+                return `${protocol}//${window.location.host}/api/ws`;
             }
         }
-    }, []);
+        return '';
+    });
 
     const { store, status } = useYjsStore({
         roomId: projectId || 'demo',
