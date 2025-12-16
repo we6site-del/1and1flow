@@ -37,6 +37,7 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  output: "standalone",
 };
 
 export default withNextIntl(nextConfig);
