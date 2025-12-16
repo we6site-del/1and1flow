@@ -1,11 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from services.supabase_client import supabase
+from utils.auth import get_current_user
+from utils.logger import get_logger
 import json
+import time
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 @router.get("/projects")
-def get_projects(user_id: str = Query(..., description="The ID of the user")):
+def get_projects(current_user: dict = Depends(get_current_user)):
+    user_id = current_user.id
     try:
         # Fetch projects from Supabase
         # Optimized: Fetch thumbnail_url directly instead of heavy canvas_data
@@ -21,13 +26,13 @@ def get_projects(user_id: str = Query(..., description="The ID of the user")):
             except Exception as e:
                 last_error = e
                 if i < max_retries - 1:
-                    import time
                     time.sleep(0.5 * (i + 1))  # Exponential backoff
                 else:
+                    logger.error(f"Failed to fetch projects after retries: {e}")
                     raise e
         
         if not response:
-            print(f"Failed to fetch projects after {max_retries} retries: {last_error}")
+            logger.warning(f"No response from Supabase for user {user_id}")
             return []
             
         projects_data = response.data
@@ -57,7 +62,7 @@ def get_projects(user_id: str = Query(..., description="The ID of the user")):
                 # If thumbnail is missing in projects and generations tables, we will show a placeholder.
 
             except Exception as e:
-                print(f"Error resolving thumbnails: {e}")
+                logger.error(f"Error resolving thumbnails: {e}")
 
         projects = []
         for item in projects_data:
@@ -88,11 +93,12 @@ def get_projects(user_id: str = Query(..., description="The ID of the user")):
         return projects
 
     except Exception as e:
-        print(f"Error fetching projects: {e}")
+        logger.error(f"Error fetching projects: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/projects/{project_id}")
-def delete_project(project_id: str, user_id: str = Query(..., description="The ID of the user")):
+def delete_project(project_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = current_user.id
     try:
         # Verify project belongs to user
         project = supabase.table("projects").select("id").eq("id", project_id).eq("user_id", user_id).execute()
@@ -106,5 +112,5 @@ def delete_project(project_id: str, user_id: str = Query(..., description="The I
     except HTTPException as e:
         raise e
     except Exception as e:
-        print(f"Error deleting project: {e}")
+        logger.error(f"Error deleting project: {e}")
         raise HTTPException(status_code=500, detail=str(e))

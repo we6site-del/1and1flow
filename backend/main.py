@@ -5,7 +5,27 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import generate, payments, chat, admin, projects, plans
 
-app = FastAPI(title="Lovart-Flow API")
+from contextlib import asynccontextmanager
+from routers.websocket import websocket_server
+import asyncio
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start the Yjs WebSocket Server background task
+    ws_task = asyncio.create_task(websocket_server.start())
+    yield
+    # Shutdown logic
+    # websocket_server.stop() or cancel task if needed.
+    # usually auto_clean_rooms handles things, but we can explicit stop if API supports it.
+    # ypy-websocket <=0.12 might not have graceful stop method widely used, 
+    # but cancelling the task is standard.
+    ws_task.cancel()
+    try:
+        await ws_task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(title="Lovart-Flow API", lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(

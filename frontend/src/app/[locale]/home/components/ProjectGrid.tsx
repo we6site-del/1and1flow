@@ -39,17 +39,20 @@ export default function ProjectGrid() {
     useEffect(() => {
         const fetchProjects = async () => {
             console.log("--- ProjectGrid Debug Start (API Mode) ---");
-            const { data: { user } } = await supabase.auth.getUser();
-            console.log("Current Auth User:", user?.id, user?.email);
+            const { data: { session } } = await supabase.auth.getSession();
 
-            if (!user) {
-                console.log("No user found, aborting fetch.");
+            if (!session) {
+                console.log("No session found, aborting fetch.");
                 return;
             }
 
             try {
-                console.log("Fetching via API: /api/projects?user_id=" + user.id);
-                const res = await fetch(`/api/projects?user_id=${user.id}`);
+                console.log("Fetching via API: /api/projects");
+                const res = await fetch(`/api/projects`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
 
                 if (!res.ok) {
                     console.error("API Error:", res.status, res.statusText);

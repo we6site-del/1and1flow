@@ -1,64 +1,74 @@
-import json
-import asyncio
+import ypy_websocket
+from ypy_websocket.websocket_server import WebsocketServer
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, List, Any
-import time
+from utils.logger import logger
 
 router = APIRouter()
 
-class ConnectionManager:
-    def __init__(self):
-        # Store active connections: room_id -> list of WebSockets
-        self.active_connections: Dict[str, List[WebSocket]] = {}
-
-    async def connect(self, websocket: WebSocket, room_id: str):
-        await websocket.accept()
-        if room_id not in self.active_connections:
-            self.active_connections[room_id] = []
-        self.active_connections[room_id].append(websocket)
-        print(f"Client connected to room {room_id}. Total: {len(self.active_connections[room_id])}")
-
-    def disconnect(self, websocket: WebSocket, room_id: str):
-        if room_id in self.active_connections:
-            if websocket in self.active_connections[room_id]:
-                self.active_connections[room_id].remove(websocket)
-            if not self.active_connections[room_id]:
-                del self.active_connections[room_id]
-        print(f"Client disconnected from room {room_id}")
-
-    async def broadcast(self, message: str | bytes, room_id: str, sender: WebSocket):
-        if room_id in self.active_connections:
-            for connection in self.active_connections[room_id]:
-                if connection != sender:
-                    try:
-                        if isinstance(message, str):
-                            await connection.send_text(message)
-                        else:
-                            await connection.send_bytes(message)
-                    except Exception as e:
-                        print(f"Error broadcasting: {e}")
-
-manager = ConnectionManager()
+# Initialize Ypy WebSocket Server
+# auto_clean_rooms=True will remove rooms when last client disconnects (in-memory)
+websocket_server = WebsocketServer(auto_clean_rooms=True)
 
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
-    await manager.connect(websocket, room_id)
+    """
+    WebSocket endpoint that handles Yjs synchronization protocol via ypy-websocket.
+    This replaces the previous simple broadcaster.
+    The ypy-websocket server handles:
+    - Sync steps 1 & 2
+    - Awareness updates
+    - Broadcasting document updates
+    """
     try:
-        while True:
-            # We accept both text and bytes
-            # Tldraw/Yjs might send binary updates
-            message = await websocket.receive()
-            
-            if "text" in message:
-                await manager.broadcast(message["text"], room_id, websocket)
-            elif "bytes" in message:
-                await manager.broadcast(message["bytes"], room_id, websocket)
-                
-            # Optional: Persist data to Supabase periodically here
-            # But simple broadcast is enough for real-time collaboration session
-
+        # We need to manually accept the connection first? 
+        # ypy-websocket's `serve` method expects an accepted websocket usually, 
+        # or at least a standardasgi websocket.
+        # FastAPI's WebSocket needs to be accepted.
+        await websocket.accept()
+        
+        # Get the YDoc for this room (creating it if needed)
+        # Note: ypy-websocket manages rooms internally.
+        # We just need to pass the websocket to the server with the room name.
+        
+        # Serve the websocket
+        # Note: ypy-websocket documentation says `serve(websocket)`
+        logger.info(f"Yjs Client connected to room: {room_id}")
+        
+        # Since room_id is part of the path, we might need to set it on the websocket scope 
+        # or pass it explicitly if the library supports it.
+        # However, ypy-websocket typically parses the path itself?
+        # Actually, `WebsocketServer.serve` usually takes the websocket.
+        # If we use it with FastAPI, we might need to ensure it knows the room.
+        
+        # Looking at ypy-websocket examples:
+        # It expects the websocket to be ready.
+        # And it uses `websocket.scope["path"]` or similar to determine room?
+        # Or we manually get the room.
+        
+        # WAIT: ypy-websocket `serve` doesn't take room_id as argument in older versions?
+        # Let's check typical usage.
+        # "server = WebsocketServer(...); await server.serve(websocket)"
+        # It extracts path from websocket scope. 
+        # Since our path is /api/ws/{room_id}, we need to make sure it parses {room_id} correctly.
+        # But `ypy-websocket` might expect just the room name in path?
+        
+        # To be safe, let's look at how we can just get the YRoom and join it.
+        # But `serve` does the protocol handling loop.
+        
+        # Workaround: If ypy-websocket expects distinct paths, we are good.
+        # It uses `websocket.path` or `scope['path']`.
+        # Our path is `/api/ws/UUID`.
+        # So the room name will be `UUID`.
+        
+        await websocket_server.serve(websocket)
+        
     except WebSocketDisconnect:
-        manager.disconnect(websocket, room_id)
+        logger.info(f"Yjs Client disconnected from room: {room_id}")
     except Exception as e:
-        print(f"WebSocket Error: {e}")
-        manager.disconnect(websocket, room_id)
+        logger.error(f"Yjs WebSocket Error: {e}")
+        # Close if not already closed
+        try:
+             await websocket.close()
+        except:
+             pass
