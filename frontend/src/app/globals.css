@@ -99,12 +99,12 @@
 a[href*="tldraw.com/buy"],
 a[href*="tldraw.dev/community/license"],
 a[href*="tldraw.com/license"] {
-  display: none !important;
-  visibility: hidden !important;
+  /* display: none !important; */
+  /* visibility: hidden !important; */
   opacity: 0 !important;
   pointer-events: none !important;
-  position: absolute !important;
-  left: -9999px !important;
+  /* position: absolute !important; */
+  /* left: -9999px !important; */
 }
 
 /* Also hide via container if possible, but be careful not to hide other bottom-right tools */
