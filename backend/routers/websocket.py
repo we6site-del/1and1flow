@@ -10,6 +10,36 @@ router = APIRouter()
 # auto_clean_rooms=True will remove rooms when last client disconnects (in-memory)
 websocket_server = WebsocketServer(auto_clean_rooms=True)
 
+# Adapter to bridge FastAPI WebSocket with ypy-websocket expectations
+class FastAPIWebsocketAdapter:
+    def __init__(self, websocket: WebSocket):
+        self._ws = websocket
+
+    @property
+    def path(self) -> str:
+        return self._ws.scope["path"]
+
+    @property
+    def query_params(self):
+        return self._ws.query_params
+
+    async def send(self, message):
+        if isinstance(message, bytes):
+            await self._ws.send_bytes(message)
+        elif isinstance(message, str):
+            await self._ws.send_text(message)
+
+    async def recv(self):
+        message = await self._ws.receive()
+        if "bytes" in message:
+            return message["bytes"]
+        elif "text" in message:
+            return message["text"]
+        return b""
+
+    async def close(self):
+        await self._ws.close()
+
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
     """
@@ -27,45 +57,11 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         # FastAPI's WebSocket needs to be accepted.
         await websocket.accept()
         
-        # SHIM: ypy-websocket requires websocket.path, which FastAPI/Starlette doesn't provide directly
-        websocket.path = websocket.scope["path"]
-        logger.info(f"DEBUG: Patched websocket.path = {websocket.path}")
-        
-        # Get the YDoc for this room (creating it if needed)
-        # Note: ypy-websocket manages rooms internally.
-        # We just need to pass the websocket to the server with the room name.
-        
-        # Serve the websocket
-        # Note: ypy-websocket documentation says `serve(websocket)`
+        # Wrap the FastAPI websocket to match ypy-websocket interface
+        socket_adapter = FastAPIWebsocketAdapter(websocket)
         logger.info(f"Yjs Client connected to room: {room_id}")
         
-        # Since room_id is part of the path, we might need to set it on the websocket scope 
-        # or pass it explicitly if the library supports it.
-        # However, ypy-websocket typically parses the path itself?
-        # Actually, `WebsocketServer.serve` usually takes the websocket.
-        # If we use it with FastAPI, we might need to ensure it knows the room.
-        
-        # Looking at ypy-websocket examples:
-        # It expects the websocket to be ready.
-        # And it uses `websocket.scope["path"]` or similar to determine room?
-        # Or we manually get the room.
-        
-        # WAIT: ypy-websocket `serve` doesn't take room_id as argument in older versions?
-        # Let's check typical usage.
-        # "server = WebsocketServer(...); await server.serve(websocket)"
-        # It extracts path from websocket scope. 
-        # Since our path is /api/ws/{room_id}, we need to make sure it parses {room_id} correctly.
-        # But `ypy-websocket` might expect just the room name in path?
-        
-        # To be safe, let's look at how we can just get the YRoom and join it.
-        # But `serve` does the protocol handling loop.
-        
-        # Workaround: If ypy-websocket expects distinct paths, we are good.
-        # It uses `websocket.path` or `scope['path']`.
-        # Our path is `/api/ws/UUID`.
-        # So the room name will be `UUID`.
-        
-        await websocket_server.serve(websocket)
+        await websocket_server.serve(socket_adapter)
         
     except WebSocketDisconnect:
         logger.info(f"Yjs Client disconnected from room: {room_id}")
