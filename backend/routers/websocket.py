@@ -29,6 +29,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         
         # SHIM: ypy-websocket requires websocket.path, which FastAPI/Starlette doesn't provide directly
         websocket.path = websocket.scope["path"]
+        logger.info(f"DEBUG: Patched websocket.path = {websocket.path}")
         
         # Get the YDoc for this room (creating it if needed)
         # Note: ypy-websocket manages rooms internally.
