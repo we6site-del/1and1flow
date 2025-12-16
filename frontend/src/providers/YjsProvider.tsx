@@ -62,8 +62,9 @@ export function YjsProvider({ room, children }: YjsProviderProps) {
 
         // For now, I will create the Provider structure but maybe warn.
 
-        const wsUrl = `ws://${window.location.host}/api/ws`;
-        // Note: y-websocket client appends room name.
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+        // Note: y-websocket client appends room name automatically (e.g. /api/ws/room-id)
 
         const newProvider = new WebsocketProvider(
             wsUrl,
