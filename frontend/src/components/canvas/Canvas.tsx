@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
     Tldraw,
@@ -14,110 +15,43 @@ import TopBar from "./TopBar";
 import BottomBar from "./BottomBar";
 import LovartSidebar from "../copilot/LovartSidebar";
 import { ImageToolbar } from "./ImageToolbar";
-import { useState, useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
-import { projectService } from "@/services/projectService";
-import { useLocale, useTranslations } from "next-intl";
-import { createClient } from "@/utils/supabase/client";
-import { ProjectProvider } from "@/contexts/ProjectContext";
-import { useYjsStore } from "@/hooks/useYjsStore";
+class ErrorBoundary extends React.Component<
+    { children: React.ReactNode },
+    { hasError: boolean; error: Error | null }
+> {
+    constructor(props: { children: React.ReactNode }) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
 
-const customShapeUtils = [AiNodeShapeUtil];
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
 
-function CanvasContent({ projectId }: { projectId?: string }) {
-    useFlowLogic();
-    const editor = useEditor();
+    componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+        console.error("Tldraw Error Boundary Caught:", error, errorInfo);
+    }
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.key === 'Backspace' || e.key === 'Delete') && !e.repeat) {
-                // Check if we are typing in an input
-                const target = e.target as HTMLElement;
-                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
-                    return;
-                }
-
-                const selectedIds = editor.getSelectedShapeIds();
-                if (selectedIds.length > 0) {
-                    editor.deleteShapes(selectedIds);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [editor]);
-
-    // Auto-save canvas data to Supabase
-    useEffect(() => {
-        if (!projectId || !editor) return;
-
-        let saveTimeout: NodeJS.Timeout;
-        let lastSaveTime = Date.now();
-        const SAVE_INTERVAL = 5000; // Save 5 seconds after last change
-        const MIN_SAVE_INTERVAL = 3000; // Minimum 3 seconds between saves
-
-        const saveCanvas = async () => {
-            try {
-                const snapshot = editor.getSnapshot();
-                const timeSinceLastSave = Date.now() - lastSaveTime;
-
-                if (timeSinceLastSave < MIN_SAVE_INTERVAL) {
-                    return; // Skip if too soon
-                }
-
-                await projectService.saveCanvasData(projectId, snapshot);
-                lastSaveTime = Date.now();
-                console.log('✓ Canvas saved to Supabase');
-            } catch (error) {
-                console.error('✗ Error saving canvas:', error);
-            }
-        };
-
-        // Listen to editor changes with debounce
-        const unsubscribe = editor.store.listen(() => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                saveCanvas();
-            }, SAVE_INTERVAL);
-        }, { source: 'user', scope: 'document' });
-
-        // Save on window unload
-        const handleBeforeUnload = () => {
-            clearTimeout(saveTimeout);
-            saveCanvas();
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-
-        // Periodic save (every 30 seconds)
-        const periodicSave = setInterval(() => {
-            saveCanvas();
-        }, 30000);
-
-        return () => {
-            unsubscribe();
-            clearTimeout(saveTimeout);
-            clearInterval(periodicSave);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            // Final save on unmount
-            saveCanvas();
-        };
-    }, [projectId, editor]);
-
-    return null;
-}
-
-function LocaleSync() {
-    const editor = useEditor();
-    const locale = useLocale();
-
-    useEffect(() => {
-        if (editor) {
-            (editor as any).user.updateUserPreferences({ locale: locale === 'zh' ? 'zh-cn' : 'en' });
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="flex items-center justify-center w-screen h-screen bg-red-50 p-10 flex-col gap-4">
+                    <h2 className="text-xl font-bold text-red-600">Canvas Crashed</h2>
+                    <pre className="bg-white p-4 rounded border border-red-200 text-sm overflow-auto max-w-full">
+                        {this.state.error?.message}
+                        {this.state.error?.stack}
+                    </pre>
+                    <button
+                        className="px-4 py-2 bg-blue-500 text-white rounded"
+                        onClick={() => window.location.reload()}
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            );
         }
-    }, [editor, locale]);
-
-    return null;
+        return this.props.children;
+    }
 }
 
 export default function Canvas({ projectId }: { projectId?: string }) {
@@ -315,43 +249,45 @@ export default function Canvas({ projectId }: { projectId?: string }) {
     });
 
     return (
-        <div className="w-screen h-screen bg-white relative overflow-hidden">
-            {/* Tldraw Editor */}
-            <div className="absolute inset-0">
-                <ProjectProvider projectId={projectId}>
-                    <Tldraw
-                        store={store}
-                        shapeUtils={customShapeUtils}
-                        hideUi={true}
-                        onMount={(editor) => {
-                            // Sync initial locale
-                            (editor as any).user.updateUserPreferences({ locale: locale === 'zh' ? 'zh-cn' : 'en' });
-                            // Store editor reference for canvas loading
-                            if (typeof window !== 'undefined') {
-                                (window as any).editor = editor;
-                            }
-                        }}
-                    >
-                        <CanvasContent projectId={projectId} />
-                        <LocaleSync />
-                        <LeftToolbar />
-                        <TopBar projectName={projectName} onProjectNameChange={handleProjectNameChange} />
-                        <BottomBar />
-                        <LovartSidebar
-                            isOpen={isSidebarOpen}
-                            onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                            initialPrompt={projectId ? initialParams.prompt : undefined}
-                            initialImage={projectId ? initialParams.image : undefined}
-                            initialWebSearch={initialWebSearch}
-                            initialChatModel={initialChatModel}
-                            initialImageModel={initialImageModel}
-                            initialVideoModel={initialVideoModel}
-                            projectId={projectId}
-                        />
-                        <ImageToolbar />
-                    </Tldraw>
-                </ProjectProvider>
+        <ErrorBoundary>
+            <div className="w-screen h-screen bg-white relative overflow-hidden">
+                {/* Tldraw Editor */}
+                <div className="absolute inset-0">
+                    <ProjectProvider projectId={projectId}>
+                        <Tldraw
+                            store={store}
+                            shapeUtils={customShapeUtils}
+                            hideUi={true}
+                            onMount={(editor) => {
+                                // Sync initial locale
+                                (editor as any).user.updateUserPreferences({ locale: locale === 'zh' ? 'zh-cn' : 'en' });
+                                // Store editor reference for canvas loading
+                                if (typeof window !== 'undefined') {
+                                    (window as any).editor = editor;
+                                }
+                            }}
+                        >
+                            <CanvasContent projectId={projectId} />
+                            <LocaleSync />
+                            <LeftToolbar />
+                            <TopBar projectName={projectName} onProjectNameChange={handleProjectNameChange} />
+                            <BottomBar />
+                            <LovartSidebar
+                                isOpen={isSidebarOpen}
+                                onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                                initialPrompt={projectId ? initialParams.prompt : undefined}
+                                initialImage={projectId ? initialParams.image : undefined}
+                                initialWebSearch={initialWebSearch}
+                                initialChatModel={initialChatModel}
+                                initialImageModel={initialImageModel}
+                                initialVideoModel={initialVideoModel}
+                                projectId={projectId}
+                            />
+                            <ImageToolbar />
+                        </Tldraw>
+                    </ProjectProvider>
+                </div>
             </div>
-        </div>
+        </ErrorBoundary>
     );
 }
