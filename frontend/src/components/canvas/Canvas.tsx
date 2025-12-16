@@ -1,6 +1,5 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
     Tldraw,
@@ -15,6 +14,16 @@ import TopBar from "./TopBar";
 import BottomBar from "./BottomBar";
 import LovartSidebar from "../copilot/LovartSidebar";
 import { ImageToolbar } from "./ImageToolbar";
+import React, { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
+import { projectService } from "@/services/projectService";
+import { useLocale, useTranslations } from "next-intl";
+import { createClient } from "@/utils/supabase/client";
+import { ProjectProvider } from "@/contexts/ProjectContext";
+import { useYjsStore } from "@/hooks/useYjsStore";
+
+const customShapeUtils = [AiNodeShapeUtil];
+
 class ErrorBoundary extends React.Component<
     { children: React.ReactNode },
     { hasError: boolean; error: Error | null }
@@ -52,6 +61,102 @@ class ErrorBoundary extends React.Component<
         }
         return this.props.children;
     }
+}
+
+function CanvasContent({ projectId }: { projectId?: string }) {
+    useFlowLogic();
+    const editor = useEditor();
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.key === 'Backspace' || e.key === 'Delete') && !e.repeat) {
+                // Check if we are typing in an input
+                const target = e.target as HTMLElement;
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
+                    return;
+                }
+
+                const selectedIds = editor.getSelectedShapeIds();
+                if (selectedIds.length > 0) {
+                    editor.deleteShapes(selectedIds);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [editor]);
+
+    // Auto-save canvas data to Supabase
+    useEffect(() => {
+        if (!projectId || !editor) return;
+
+        let saveTimeout: NodeJS.Timeout;
+        let lastSaveTime = Date.now();
+        const SAVE_INTERVAL = 5000; // Save 5 seconds after last change
+        const MIN_SAVE_INTERVAL = 3000; // Minimum 3 seconds between saves
+
+        const saveCanvas = async () => {
+            try {
+                const snapshot = editor.getSnapshot();
+                const timeSinceLastSave = Date.now() - lastSaveTime;
+
+                if (timeSinceLastSave < MIN_SAVE_INTERVAL) {
+                    return; // Skip if too soon
+                }
+
+                await projectService.saveCanvasData(projectId, snapshot);
+                lastSaveTime = Date.now();
+                console.log('✓ Canvas saved to Supabase');
+            } catch (error) {
+                console.error('✗ Error saving canvas:', error);
+            }
+        };
+
+        // Listen to editor changes with debounce
+        const unsubscribe = editor.store.listen(() => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveCanvas();
+            }, SAVE_INTERVAL);
+        }, { source: 'user', scope: 'document' });
+
+        // Save on window unload
+        const handleBeforeUnload = () => {
+            clearTimeout(saveTimeout);
+            saveCanvas();
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        // Periodic save (every 30 seconds)
+        const periodicSave = setInterval(() => {
+            saveCanvas();
+        }, 30000);
+
+        return () => {
+            unsubscribe();
+            clearTimeout(saveTimeout);
+            clearInterval(periodicSave);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Final save on unmount
+            saveCanvas();
+        };
+    }, [projectId, editor]);
+
+    return null;
+}
+
+function LocaleSync() {
+    const editor = useEditor();
+    const locale = useLocale();
+
+    useEffect(() => {
+        if (editor) {
+            (editor as any).user.updateUserPreferences({ locale: locale === 'zh' ? 'zh-cn' : 'en' });
+        }
+    }, [editor, locale]);
+
+    return null;
 }
 
 export default function Canvas({ projectId }: { projectId?: string }) {
