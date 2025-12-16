@@ -27,6 +27,9 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         # FastAPI's WebSocket needs to be accepted.
         await websocket.accept()
         
+        # SHIM: ypy-websocket requires websocket.path, which FastAPI/Starlette doesn't provide directly
+        websocket.path = websocket.scope["path"]
+        
         # Get the YDoc for this room (creating it if needed)
         # Note: ypy-websocket manages rooms internally.
         # We just need to pass the websocket to the server with the room name.
