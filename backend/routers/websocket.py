@@ -66,7 +66,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
     except WebSocketDisconnect:
         logger.info(f"Yjs Client disconnected from room: {room_id}")
     except Exception as e:
-        logger.error(f"Yjs WebSocket Error: {e}")
+        import traceback
+        logger.error(f"Yjs WebSocket Error: {e}\n{traceback.format_exc()}")
         # Close if not already closed
         try:
              await websocket.close()
