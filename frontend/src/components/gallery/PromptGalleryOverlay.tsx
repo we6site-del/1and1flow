@@ -27,41 +27,35 @@ export function PromptGalleryOverlay({ open, onOpenChange, onSelect }: PromptGal
     const { data: categories = [] } = useQuery({
         queryKey: ["prompt-categories"],
         queryFn: async () => {
-            const { data } = await supabase
-                .from("curated_prompts")
-                .select("category")
-                .eq("is_active", true); // Or use API /api/prompts/categories if preferred
-            // Unique categories
-            if (!data) return [];
-            return Array.from(new Set(data.map((i: any) => i.category).filter(Boolean)));
+            const res = await fetch('/api/prompts/categories');
+            if (!res.ok) throw new Error('Failed to fetch categories');
+            const data = await res.json();
+            return data.categories || [];
         },
         enabled: open,
     });
 
     // Fetch Prompts
-    // In a real app we might use infinite scroll. For now, fetch top 100.
     const { data: prompts = [], isLoading, isError, error } = useQuery({
         queryKey: ["gallery-prompts", selectedCategory],
         queryFn: async () => {
-            console.log("Fetching prompts...", process.env.NEXT_PUBLIC_SUPABASE_URL ? "URL Set" : "URL Missing");
-            let query = supabase
-                .from("curated_prompts")
-                .select("*")
-                .eq("is_active", true)
-                .order("created_at", { ascending: false })
-                .limit(100);
-
+            const params = new URLSearchParams();
+            params.append('page', '1');
+            params.append('limit', '100');
             if (selectedCategory) {
-                query = query.eq("category", selectedCategory);
+                params.append('category', selectedCategory);
             }
 
-            const { data, error } = await query;
-            console.log("Supabase Response:", { dataLength: data?.length, error });
-            if (error) {
-                console.error("Supabase Error:", error);
-                throw error;
+            console.log("Fetching prompts from API...");
+            const res = await fetch(`/api/prompts/gallery?${params.toString()}`);
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Failed to fetch prompts');
             }
-            return data as GalleryItem[];
+
+            const json = await res.json();
+            return (json.data || []) as GalleryItem[];
         },
         enabled: open,
     });
