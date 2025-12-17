@@ -14,8 +14,10 @@ export async function createClient() {
         targetUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
-            cookies: {
+            cookieOptions: {
                 name: 'sb-bamcwwtwtvxjjcdfbmdr-auth-token',
+            },
+            cookies: {
                 getAll() {
                     return cookieStore.getAll();
                 },
