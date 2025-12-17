@@ -7,7 +7,15 @@ export async function updateSession(request: NextRequest) {
     });
 
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    // OPTIMIZATION: On server-side, use direct URL to avoid "Self-Proxy Loop" and 111/503 errors.
+    // The proxy is only needed for the client (browser).
+    const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const targetUrl = publicUrl.includes('supabase-proxy')
+        ? 'https://bamcwwtwtvxjjcdfbmdr.supabase.co'
+        : publicUrl;
+
+    const supabase = createServerClient(
+        targetUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {

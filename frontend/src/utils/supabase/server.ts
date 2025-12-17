@@ -4,8 +4,14 @@ import { cookies } from "next/headers";
 export async function createClient() {
     const cookieStore = await cookies();
 
+    // OPTIMIZATION: On server-side, use direct URL to avoid "Self-Proxy Loop"
+    const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const targetUrl = publicUrl.includes('supabase-proxy')
+        ? 'https://bamcwwtwtvxjjcdfbmdr.supabase.co'
+        : publicUrl;
+
     return createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        targetUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
