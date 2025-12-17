@@ -13,7 +13,17 @@ const intlMiddleware = createMiddleware({
 export async function middleware(request: NextRequest) {
     console.log(`[Middleware] Request: ${request.nextUrl.pathname}`);
     // First, handle Supabase session management and auth
-    const supabaseResponse = await updateSession(request);
+    let supabaseResponse = NextResponse.next({
+        request,
+    });
+
+    try {
+        supabaseResponse = await updateSession(request);
+    } catch (e) {
+        console.error("[Middleware] Supabase session check failed, proceeding as unauth:", e);
+        // Fallback: Proceed without auth check if Supabase is down/unreachable
+        // This prevents 502/500 errors for the whole site
+    }
 
     // If Supabase middleware redirected, return that response
     if (supabaseResponse.status === 307 || supabaseResponse.status === 308) {
