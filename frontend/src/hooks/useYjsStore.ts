@@ -41,7 +41,9 @@ export function useYjsStore({
 
         // We will use yMap for simpler key-value storage of records
 
-        const wsProvider = new WebsocketProvider(hostUrl, roomId, yDoc, { connect: true });
+        // Fix: Backend expects /api/ws/{room_id} in the path
+        const fullUrl = `${hostUrl}/${roomId}`;
+        const wsProvider = new WebsocketProvider(fullUrl, roomId, yDoc, { connect: true });
 
         wsProvider.on('status', (event: any) => {
             console.log("Yjs WebSocket status:", event.status);
