@@ -37,12 +37,8 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
-  output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
 };
 
