@@ -363,6 +363,7 @@ export default function Canvas({ projectId }: { projectId?: string }) {
                             store={store}
                             shapeUtils={customShapeUtils}
                             hideUi={true}
+                            licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
                             onMount={(editor) => {
                                 // Sync initial locale
                                 (editor as any).user.updateUserPreferences({ locale: locale === 'zh' ? 'zh-cn' : 'en' });
