@@ -31,9 +31,22 @@ export async function GET(
 
                 // Clean up the 'next' param to avoid open redirect vulnerabilities
                 const safeNext = next.startsWith('/') ? next : `/${next}`;
-                const redirectUrl = `${origin}${safeNext}`;
 
-                console.log('[Auth Callback] Redirecting to:', redirectUrl);
+                // Determine the correct origin for redirection
+                // In production, we MUST usage the public site URL to avoid internal IP (0.0.0.0:3000) issues
+                let redirectOrigin = origin;
+
+                if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL) {
+                    redirectOrigin = process.env.NEXT_PUBLIC_SITE_URL;
+                    // Remove trailing slash if present
+                    if (redirectOrigin.endsWith('/')) {
+                        redirectOrigin = redirectOrigin.slice(0, -1);
+                    }
+                }
+
+                const redirectUrl = `${redirectOrigin}${safeNext}`;
+
+                console.log('[Auth Callback] Redirecting to:', redirectUrl, '(Origin source:', redirectOrigin === origin ? 'request' : 'env');
                 return NextResponse.redirect(redirectUrl);
             } else {
                 console.error("[Auth Callback] Error exchanging code:", {
