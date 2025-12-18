@@ -45,30 +45,40 @@ export async function updateSession(request: NextRequest) {
 
     const path = request.nextUrl.pathname;
 
-    // Define protected routes
-    // We check if the path contains these segments to handle localized routes (e.g. /en/home, /zh/flow)
-    const isProtectedRoute =
+    // 🛡️ Route Protection Logic (Safe Implementation)
+
+    // 1. Define strictly protected page routes
+    const isProtectedPage =
         path.includes('/home') ||
         path.includes('/flow') ||
         path.includes('/projects');
 
-    // Define auth route
-    const isAuthRoute = path.includes('/login');
+    // 2. Define API/Static routes that MUST NEVER be redirected
+    const isApiOrStatic =
+        path.startsWith('/api') ||
+        path.startsWith('/_next') ||
+        path.startsWith('/static') ||
+        path.includes('.'); // File extensions (e.g. css, js, eco)
 
-    // 1. Unauthenticated users trying to access protected routes -> Redirect to Login
-    if (!user && isProtectedRoute) {
-        // Get the locale from the request path if present, defaulting to 'en'
-        // Simple regex to extract locale: /en/..., /zh/...
+    // 3. Define Auth route
+    const isAuthPage = path.includes('/login');
+
+    // 🚀 Redirect Logic
+
+    // Case A: Unauthenticated User accessing Protected Page
+    // ONLY redirect if it's a protected PAGE and NOT an API/Static resource
+    if (!user && isProtectedPage && !isApiOrStatic) {
+        // Extract locale or default to 'zh'
         const localeMatch = path.match(/^\/(en|zh)\//);
-        const locale = localeMatch ? localeMatch[1] : 'zh'; // Default to zh if not found or root
+        const locale = localeMatch ? localeMatch[1] : 'zh';
 
         const url = request.nextUrl.clone();
         url.pathname = `/${locale}/login`;
         return NextResponse.redirect(url);
     }
 
-    // 2. Authenticated users trying to access login page -> Redirect to Home
-    if (user && isAuthRoute) {
+    // Case B: Authenticated User accessing Login Page
+    if (user && isAuthPage && !isApiOrStatic) {
         const localeMatch = path.match(/^\/(en|zh)\//);
         const locale = localeMatch ? localeMatch[1] : 'zh';
 
