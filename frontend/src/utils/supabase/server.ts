@@ -14,13 +14,23 @@ export async function createClient() {
                 },
                 setAll(cookiesToSet) {
                     try {
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            cookieStore.set(name, value, options)
-                        );
-                    } catch {
+                        cookiesToSet.forEach(({ name, value, options }) => {
+                            // Ensure cookies work across the domain in production
+                            const cookieOptions = {
+                                ...options,
+                                domain: process.env.NODE_ENV === 'production'
+                                    ? '.lunyee.cn'
+                                    : undefined,
+                                sameSite: 'lax' as const,
+                                secure: process.env.NODE_ENV === 'production',
+                            };
+                            cookieStore.set(name, value, cookieOptions);
+                        });
+                    } catch (error) {
                         // The `setAll` method was called from a Server Component.
                         // This can be ignored if you have middleware refreshing
                         // user sessions.
+                        console.error('[Supabase Server] Cookie set error:', error);
                     }
                 },
             },
