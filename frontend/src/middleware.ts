@@ -13,7 +13,14 @@ const intlMiddleware = createMiddleware({
 export async function middleware(request: NextRequest) {
     // 1. Update Supabase Session
     // This allows refreshing the session cookie if needed
+    // AND handles route protection (redirects unauthenticated users)
     const supabaseResponse = await updateSession(request);
+
+    // If updateSession returns a redirect, we must return it immediately
+    // otherwise the redirect will be lost when we create a new response below
+    if (supabaseResponse.headers.get('location')) {
+        return supabaseResponse;
+    }
 
     // 2. Run i18n Middleware
     const response = intlMiddleware(request);

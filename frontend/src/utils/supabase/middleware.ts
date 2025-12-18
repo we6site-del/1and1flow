@@ -43,19 +43,38 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    if (
-        !user &&
-        !request.nextUrl.pathname.startsWith("/login") &&
-        !request.nextUrl.pathname.startsWith("/auth") &&
-        !request.nextUrl.pathname.startsWith("/api") &&
-        !request.nextUrl.pathname.startsWith("/_next")
-    ) {
-        // no user, potentially redirect to login
-        // BUT checking your existing middleware logic, you handle redirects there too.
-        // The standard pattern usually redirects here.
-        // However, I will keep this function focused on SESSION UPDATE only
-        // and let the main middleware.ts handle the route protection logic 
-        // to avoid clashing with your i18n middleware.
+    const path = request.nextUrl.pathname;
+
+    // Define protected routes
+    // We check if the path contains these segments to handle localized routes (e.g. /en/home, /zh/flow)
+    const isProtectedRoute =
+        path.includes('/home') ||
+        path.includes('/flow') ||
+        path.includes('/projects');
+
+    // Define auth route
+    const isAuthRoute = path.includes('/login');
+
+    // 1. Unauthenticated users trying to access protected routes -> Redirect to Login
+    if (!user && isProtectedRoute) {
+        // Get the locale from the request path if present, defaulting to 'en'
+        // Simple regex to extract locale: /en/..., /zh/...
+        const localeMatch = path.match(/^\/(en|zh)\//);
+        const locale = localeMatch ? localeMatch[1] : 'zh'; // Default to zh if not found or root
+
+        const url = request.nextUrl.clone();
+        url.pathname = `/${locale}/login`;
+        return NextResponse.redirect(url);
+    }
+
+    // 2. Authenticated users trying to access login page -> Redirect to Home
+    if (user && isAuthRoute) {
+        const localeMatch = path.match(/^\/(en|zh)\//);
+        const locale = localeMatch ? localeMatch[1] : 'zh';
+
+        const url = request.nextUrl.clone();
+        url.pathname = `/${locale}/home`;
+        return NextResponse.redirect(url);
     }
 
     return supabaseResponse;
