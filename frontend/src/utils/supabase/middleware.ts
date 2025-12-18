@@ -6,12 +6,8 @@ export async function updateSession(request: NextRequest) {
         request,
     });
 
-    // OPTIMIZATION: On server-side, use direct URL to avoid "Self-Proxy Loop" and 111/503 errors.
-    // The proxy is only needed for the client (browser).
-    const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const targetUrl = publicUrl.includes('supabase-proxy')
-        ? 'https://bamcwwtwtvxjjcdfbmdr.supabase.co'
-        : publicUrl;
+    // Simplified: Just use the env var directly
+    const targetUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
     const supabase = createServerClient(
         targetUrl,
@@ -29,13 +25,8 @@ export async function updateSession(request: NextRequest) {
                         request,
                     });
                     cookiesToSet.forEach(({ name, value, options }) =>
-                        // FIX: Ensure cookies are accessible across the entire domain and proxy
-                        supabaseResponse.cookies.set(name, value, {
-                            ...options,
-                            ...(process.env.NODE_ENV === 'production' ? { domain: '.lunyee.cn' } : {}),
-                            secure: true,
-                            sameSite: 'lax'
-                        })
+                        // FIX: Authenticate using standard cookie behavior
+                        supabaseResponse.cookies.set(name, value, options)
                     );
                 },
             },

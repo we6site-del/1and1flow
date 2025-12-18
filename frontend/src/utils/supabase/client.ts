@@ -7,9 +7,8 @@ export function createClient() {
         {
             cookieOptions: {
                 name: 'sb-bamcwwtwtvxjjcdfbmdr-auth-token',
-                ...(process.env.NODE_ENV === 'production' ? { domain: '.lunyee.cn' } : {}),
-                secure: true,
-                sameSite: 'lax',
+                // Removed explicit domain to allow default host-only behavior
+                // Removed explicit secure/sameSite to allow auto-detection
             },
         }
     );
