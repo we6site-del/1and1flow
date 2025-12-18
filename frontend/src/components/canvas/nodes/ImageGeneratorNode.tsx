@@ -292,11 +292,6 @@ export function ImageGeneratorNode({ id, selected, data, onGenerate, onUpdateRef
                             }}
                             onClick={(e) => {
                                 stopPropagation(e);
-                                if (modelId && !isGenerating) {
-                                    const cost = selectedModel?.cost_per_gen ?? 0;
-                                    if (!checkCredits(cost)) return;
-                                    onGenerate?.(prompt, modelId, parameters);
-                                }
                             }}
                             onPointerDown={stopPropagation}
                             onMouseDown={stopPropagation}
