@@ -15,15 +15,24 @@ export async function updateSession(request: NextRequest) {
                     return request.cookies.getAll();
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
+                    cookiesToSet.forEach(({ name, value }) =>
                         request.cookies.set(name, value)
                     );
                     supabaseResponse = NextResponse.next({
                         request,
                     });
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        supabaseResponse.cookies.set(name, value, options)
-                    );
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        // 确保 Cookie 在生产环境中正确配置域名
+                        const cookieOptions = {
+                            ...options,
+                            domain: process.env.NODE_ENV === 'production'
+                                ? '.lunyee.cn'
+                                : undefined,
+                            sameSite: 'lax' as const,
+                            secure: process.env.NODE_ENV === 'production',
+                        };
+                        supabaseResponse.cookies.set(name, value, cookieOptions);
+                    });
                 },
             },
         }
