@@ -23,9 +23,7 @@ export default function LoginPage() {
         setIsLoading(true);
         setErrorMsg("");
         try {
-            const redirectTo = typeof window !== 'undefined'
-                ? `${window.location.origin}/${locale}/auth/callback`
-                : `/${locale}/auth/callback`;
+            const redirectTo = `${window.location.origin}/${locale}/auth/callback`;
 
             const { error } = await supabase.auth.signInWithOAuth({
                 provider,
@@ -47,9 +45,7 @@ export default function LoginPage() {
         setErrorMsg("");
 
         try {
-            const redirectTo = typeof window !== 'undefined'
-                ? `${window.location.origin}/${locale}/auth/callback`
-                : `/${locale}/auth/callback`;
+            const redirectTo = `${window.location.origin}/${locale}/auth/callback`;
 
             if (isSignUp) {
                 // Sign Up

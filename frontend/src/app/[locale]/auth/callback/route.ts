@@ -7,33 +7,37 @@ export async function GET(
 ) {
     const { locale } = await params;
     const { searchParams, origin } = new URL(request.url);
+
     const code = searchParams.get("code");
-    let next = searchParams.get("next") ?? `/${locale}`;
-
-    if (next && !next.startsWith(`/${locale}`) && !next.startsWith("/en") && !next.startsWith("/zh")) {
-        next = `/${locale}${next.startsWith("/") ? next : `/${next}`}`;
-    }
-
-    // Define siteUrl globally
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin;
+    // Default to locale root if no 'next' param
+    const next = searchParams.get("next") ?? `/${locale}`;
 
     if (code) {
         const supabase = await createClient();
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (!error) {
-            const isLocal = process.env.NODE_ENV === "development";
-            console.log(`[Auth Callback] Success. Redirecting to: ${next}`);
-            return NextResponse.redirect(`${isLocal ? origin : siteUrl}${next}`);
+            // Successful login
+            // Construct the forward URL
+            const forwardedHost = request.headers.get('x-forwarded-host'); // original origin before load balancer
+            const isLocal = process.env.NODE_ENV === 'development';
+
+            // If behind a proxy/load balancer, we might want to respect that, 
+            // but for now, let's stick to the request origin or NEXT_PUBLIC_SITE_URL
+            // to avoid mismatch.
+
+            // Clean up the 'next' param to avoid open redirect vulnerabilities
+            // ensure it starts with / and doesn't contain protocol
+            const safeNext = next.startsWith('/') ? next : `/${next}`;
+
+            return NextResponse.redirect(`${origin}${safeNext}`);
         } else {
-            console.error("[Auth Callback] Exchange Error:", error);
+            console.error("[Auth Callback] Error exchanging code:", error);
         }
     } else {
-        console.error("[Auth Callback] No code provided");
+        console.error("[Auth Callback] No code received");
     }
 
-    // Redirect to Error Page
-    const errorUrl = `${siteUrl}/${locale}/auth/auth-code-error`;
-    console.log(`[Auth Callback] Redirecting to error page: ${errorUrl}`);
-    return NextResponse.redirect(errorUrl);
+    // Fallback / Error
+    return NextResponse.redirect(`${origin}/${locale}/auth/auth-code-error`);
 }

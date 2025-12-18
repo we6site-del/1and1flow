@@ -11,29 +11,16 @@ const intlMiddleware = createMiddleware({
 });
 
 export async function middleware(request: NextRequest) {
-    console.log(`[Middleware] Request: ${request.nextUrl.pathname}`);
-    // First, handle Supabase session management and auth
-    let supabaseResponse = NextResponse.next({
-        request,
-    });
+    // 1. Update Supabase Session
+    // This allows refreshing the session cookie if needed
+    const supabaseResponse = await updateSession(request);
 
-    try {
-        supabaseResponse = await updateSession(request);
-    } catch (e) {
-        console.error("[Middleware] Supabase session check failed, proceeding as unauth:", e);
-        // Fallback: Proceed without auth check if Supabase is down/unreachable
-        // This prevents 502/500 errors for the whole site
-    }
-
-    // If Supabase middleware redirected, return that response
-    if (supabaseResponse.status === 307 || supabaseResponse.status === 308) {
-        return supabaseResponse;
-    }
-
-    // Then, handle i18n routing
+    // 2. Run i18n Middleware
     const response = intlMiddleware(request);
 
-    // Copy cookies from supabaseResponse to response (to preserve session updates)
+    // 3. Merge Cookies
+    // We must ensure that any cookie updates from Supabase (like session refresh)
+    // are passed down to the final response returned by i18n middleware.
     supabaseResponse.cookies.getAll().forEach((cookie) => {
         response.cookies.set(cookie.name, cookie.value, cookie);
     });
@@ -43,7 +30,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     // Match all pathnames except for
-    // - … if they start with `/api`, `/_next`, `/_vercel` or `/supabase-proxy`
+    // - … if they start with `/api`, `/_next`, `/_vercel`
     // - … the ones containing a dot (e.g. `favicon.ico`)
-    matcher: ['/((?!api|_next|_vercel|supabase-proxy|.*\\..*).*)']
+    matcher: ['/((?!api|_next|_vercel|.*\\..*).*)']
 };
