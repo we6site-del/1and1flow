@@ -29,14 +29,22 @@ export async function updateSession(request: NextRequest) {
                         request,
                     });
                     cookiesToSet.forEach(({ name, value, options }) =>
-                        supabaseResponse.cookies.set(name, value, options)
+                        // FIX: Ensure cookies are accessible across the entire domain and proxy
+                        supabaseResponse.cookies.set(name, value, {
+                            ...options,
+                            ...(process.env.NODE_ENV === 'production' ? { domain: '.lunyee.cn' } : {}),
+                            secure: true,
+                            sameSite: 'lax'
+                        })
                     );
                 },
             },
+            // Reduce timeout for faster failing
             global: {
                 fetch: async (url, options) => {
+                    // ... same fetch wrapper ...
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
                     try {
                         const response = await fetch(url, {
@@ -48,8 +56,6 @@ export async function updateSession(request: NextRequest) {
                     } catch (error) {
                         clearTimeout(timeoutId);
                         console.error("Supabase Middleware Network Error:", error);
-                        // Do NOT return a 401 here. Throwing or returning 500 is safer 
-                        // to prevent false-positive logouts.
                         throw error;
                     }
                 },
@@ -106,21 +112,11 @@ export async function updateSession(request: NextRequest) {
     const isPublicRoute =
         pathname.includes("/login") ||
         pathname.includes("/auth") ||
-        pathname.includes("/admin") ||
-        pathname === "/" ||
-        pathname.match(/^\/(en|zh)$/);
+        pathname.includes("/error") ||
+        pathname.includes("/admin");
 
     if (!user && !isPublicRoute) {
-        // Double check if we have a session cookie before redirecting
-        // This prevents redirecting when Supabase request failed but user might still have cookies
-        const hasSessionCookie = request.cookies.getAll().some(c => c.name.includes('sb-') && c.name.includes('-auth-token'));
-
-        if (hasSessionCookie) {
-            console.warn("Middleware: User query failed but session cookie exists. Allowing request to proceed (Potential Network Issue).");
-            return supabaseResponse;
-        }
-
-        // no user and no session cookie, redirect to login
+        // STRICT: No user object = Redirect. No exceptions.
         const url = request.nextUrl.clone();
         const localeMatch = pathname.match(/^\/(en|zh)/);
         const locale = localeMatch ? localeMatch[1] : 'en';
