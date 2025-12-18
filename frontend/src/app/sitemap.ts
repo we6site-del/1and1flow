@@ -4,9 +4,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = "https://11flow.ai"; // Replace with actual domain
 
     // Fetch top generations from backend
-    // Since this runs at build time or on demand on server, we can fetch from API
-    // Ensure the backend URL is accessible
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // Since this runs at build time or on demand on server, we use localhost directly
+    // This avoids issues with relative paths (like /api) in NEXT_PUBLIC_API_URL
+    const backendUrl = "http://localhost:8000";
 
     try {
         const response = await fetch(`${backendUrl}/api/generations/sitemap?limit=5000`);
