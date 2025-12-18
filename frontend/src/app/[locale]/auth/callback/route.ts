@@ -15,7 +15,8 @@ export async function GET(
         code: code?.substring(0, 10) + '...',
         origin,
         next,
-        env: process.env.NODE_ENV
+        env: process.env.NODE_ENV,
+        siteUrl: process.env.NEXT_PUBLIC_SITE_URL
     });
 
     if (code) {
