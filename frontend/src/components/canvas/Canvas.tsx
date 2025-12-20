@@ -264,8 +264,15 @@ export default function Canvas({ projectId }: { projectId?: string }) {
                         if (editor && project.canvas_data) {
                             try {
                                 editor.loadSnapshot(project.canvas_data);
-                            } catch (e) {
+                            } catch (e: any) {
                                 console.error("Error loading canvas snapshot:", e);
+                                // If schema is incompatible (e.g., after version downgrade), clear the data
+                                if (e.message && e.message.includes('migration')) {
+                                    console.warn("Canvas data schema incompatible, clearing old data");
+                                    toast.error("画布数据不兼容，已重置为空白画布");
+                                    // Clear the incompatible data from database
+                                    projectService.saveCanvasData(projectId, null).catch(console.error);
+                                }
                             }
                         }
                     }
