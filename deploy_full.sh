@@ -37,12 +37,24 @@ if [ -f "requirements.txt" ]; then
 fi
 echo -e "${GREEN}✓ 后端环境检查完成${NC}"
 
-# 3. 构建前端
-echo -e "\n${YELLOW}>> 步骤 3: 构建前端 (Clean Install)${NC}"
+# 3. 构建前端 (完全清理重装)
+echo -e "\n${YELLOW}>> 步骤 3: 构建前端 (Complete Clean Reinstall)${NC}"
 cd $PROJECT_DIR/frontend
-# 强制清理以解决 Tldraw 依赖冲突
+
+echo "清理所有缓存和构建文件..."
 rm -rf .next node_modules package-lock.json
+
+echo "清理 npm 缓存..."
+npm cache clean --force
+
+echo "重新安装依赖..."
 npm install --legacy-peer-deps
+
+echo "验证 Tldraw 版本..."
+TLDRAW_VERSION=$(npm list tldraw --depth=0 2>/dev/null | grep tldraw@ | sed 's/.*tldraw@//' | sed 's/ .*//')
+echo "已安装 Tldraw 版本: $TLDRAW_VERSION"
+
+echo "开始构建..."
 npm run build
 echo -e "${GREEN}✓ 前端构建完成${NC}"
 
