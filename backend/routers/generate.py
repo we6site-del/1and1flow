@@ -129,7 +129,13 @@ async def generate_image(request: GenerateRequest, background_tasks: BackgroundT
         
         if request.model_id:
             # Fetch from database
-            model_response = supabase.table("ai_models").select("cost_per_gen, api_path, provider").eq("id", request.model_id).eq("is_active", True).execute()
+            # Try api_path first (for legacy string IDs like "flux-pro"), then fallback to UUID
+            model_response = supabase.table("ai_models").select("cost_per_gen, api_path, provider").eq("api_path", request.model_id).eq("is_active", True).execute()
+            
+            # If not found by api_path, try by UUID (id)
+            if not model_response.data or len(model_response.data) == 0:
+                model_response = supabase.table("ai_models").select("cost_per_gen, api_path, provider").eq("id", request.model_id).eq("is_active", True).execute()
+            
             if model_response.data and len(model_response.data) > 0:
                 model_config = model_response.data[0]
                 cost = model_config.get("cost_per_gen", cost)
