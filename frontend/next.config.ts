@@ -5,9 +5,6 @@ const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
   /* config options here */
-  experimental: {
-    turbo: false,
-  },
   async rewrites() {
     return [
       {
@@ -54,6 +51,15 @@ const nextConfig: NextConfig = {
       "zod/v3": require.resolve("zod"),
       "zod/v4": require.resolve("zod"),
     };
+
+    // Prevent duplicate module loading
+    if (!config.optimization) {
+      config.optimization = {};
+    }
+    config.optimization.providedExports = true;
+    config.optimization.usedExports = true;
+    config.optimization.sideEffects = true;
+
     return config;
   },
   typescript: {
