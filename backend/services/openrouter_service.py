@@ -161,6 +161,7 @@ def generate_image(prompt, model, aspect_ratio="1:1", extra_params=None, num_ima
                          with open("debug_gen.log", "a") as f: f.write(f"DEBUG: Found Data URI: {preview}\n")
                     else:
                          print(f"DEBUG: Found Image URL: {url}")
+                    # CRITICAL: Return the URL immediately
                     return url
         
         if not content:
