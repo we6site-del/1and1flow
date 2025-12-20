@@ -5,6 +5,9 @@ const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
   /* config options here */
+  experimental: {
+    turbo: false,
+  },
   async rewrites() {
     return [
       {
