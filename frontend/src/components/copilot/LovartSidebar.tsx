@@ -56,6 +56,10 @@ export default function LovartSidebar({ isOpen, onToggle, initialPrompt, initial
     const [selectedImageModel, setSelectedImageModel] = useState<string>(initialImageModel || "");
     const [selectedVideoModel, setSelectedVideoModel] = useState<string>(initialVideoModel || "");
 
+    // Parameter State
+    const [imageModelParams, setImageModelParams] = useState<Record<string, any>>({});
+    const [videoModelParams, setVideoModelParams] = useState<Record<string, any>>({});
+
     // Initialize Defaults
     useEffect(() => {
         if (chatModels?.length > 0 && !selectedChatModel) {
@@ -81,7 +85,9 @@ export default function LovartSidebar({ isOpen, onToggle, initialPrompt, initial
         body: {
             model: selectedChatModel,            // The Brain
             preferredImageModel: selectedImageModel, // The Hand (Image)
-            preferredVideoModel: selectedVideoModel  // The Hand (Video)
+            preferredVideoModel: selectedVideoModel,  // The Hand (Video)
+            imageModelParams,
+            videoModelParams
         },
         onError: (error) => {
             console.error("Chat API Error:", error);
@@ -116,7 +122,24 @@ export default function LovartSidebar({ isOpen, onToggle, initialPrompt, initial
 
     useEffect(() => {
         if (messages.length > 0) {
-            localStorage.setItem(historyKey, JSON.stringify(messages));
+            // Optimization: Remove heavy Base64 images from localStorage persistence
+            const messagesToSave = messages.map(m => {
+                let content = m.content;
+                if (typeof content === 'string' && content.includes("[IMAGE]")) {
+                    // Replace base64 data with a placeholder to save space
+                    // Pattern: [IMAGE]data:image...[/IMAGE]
+                    content = content.replace(/\[IMAGE\]data:image\/[^;]+;base64,[^\[]+\[\/IMAGE\]/g, "[IMAGE](Image not saved in history)[/IMAGE]");
+                }
+                return { ...m, content };
+            });
+
+            try {
+                localStorage.setItem(historyKey, JSON.stringify(messagesToSave));
+            } catch (e) {
+                console.error("Failed to save chat history (quota exceeded)", e);
+                // If it still fails, maybe clear old history? 
+                // localStorage.removeItem(historyKey);
+            }
         }
     }, [messages, historyKey]);
 
@@ -229,6 +252,11 @@ export default function LovartSidebar({ isOpen, onToggle, initialPrompt, initial
                             onVideoModelChange={setSelectedVideoModel}
                             chatModelsLoading={chatModelsLoading}
                             chatModelsError={chatModelsError}
+                            // Params
+                            imageModelParams={imageModelParams}
+                            onImageModelParamsChange={setImageModelParams}
+                            videoModelParams={videoModelParams}
+                            onVideoModelParamsChange={setVideoModelParams}
                         />
                     }
                 />

@@ -64,6 +64,10 @@ export function YjsProvider({ room, children }: YjsProviderProps) {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+
+        console.log("[YjsProvider] Init:", { wsUrl, room });
+        // Pattern check: if correct, it should be wss://host/api/ws and room=UUID
+        // Resulting URL by y-websocket: wss://host/api/ws/UUID
         // Note: y-websocket client appends room name automatically (e.g. /api/ws/room-id)
 
         const newProvider = new WebsocketProvider(

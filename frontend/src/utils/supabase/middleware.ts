@@ -51,7 +51,8 @@ export async function updateSession(request: NextRequest) {
     const isProtectedPage =
         path.includes('/home') ||
         path.includes('/flow') ||
-        path.includes('/projects');
+        path.includes('/projects') ||
+        path.includes('/admin');
 
     // 2. Define API/Static routes that MUST NEVER be redirected
     const isApiOrStatic =

@@ -39,111 +39,81 @@ def process_generation_task(
     num_images: int
 ):
     """
-    Executes AI generation using Fal.ai/Replicate and uploads result to R2.
-    Now supports dynamic model configuration from ai_models table.
+    Executes AI generation using Unified Provider Architecture.
     """
+    from providers.factory import ProviderFactory
 
     try:
         logger.info(f"--- Processing Generation Task {generation_id} ---")
-        logger.info(f"Prompt: {prompt}, Model ID: {model_id}, Type: {type}")
-
-        # 1. Fetch model configuration from database if model_id is provided
+        
+        # 1. Fetch Model Config
         model_config = None
         if model_id:
             model_response = supabase.table("ai_models").select("*").eq("id", model_id).eq("is_active", True).execute()
-            if model_response.data and len(model_response.data) > 0:
+            if model_response.data:
                 model_config = model_response.data[0]
-                model = model_config.get("api_path") or model
-                logger.info(f"Using model config: {model_config.get('name')} ({model_config.get('provider')})")
-        
-        # 2. Extract parameters from dynamic schema or legacy fields
-        final_aspect_ratio = aspect_ratio
-        final_duration = duration
-        
-        if parameters:
-            # Use dynamic parameters
-            if "aspect_ratio" in parameters and parameters["aspect_ratio"]:
-                logger.debug(f"Overriding aspect ratio with parameter value: {parameters['aspect_ratio']}")
-                final_aspect_ratio = parameters["aspect_ratio"]
-            if "duration" in parameters and parameters["duration"]:
-                final_duration = parameters["duration"]
-        
-        logger.debug(f"Final Aspect Ratio: {final_aspect_ratio}")
-        
-        # Use defaults if still not set
-        if not final_aspect_ratio:
-            final_aspect_ratio = "1:1" if type == "image" else "16:9"
-        if not final_duration and type == "video":
-            final_duration = "5s"
-        
-        logger.info(f"Starting generation for {generation_id} with prompt: {prompt} (Type: {type}, Model: {model})")
-        logger.info(f"Parameters: aspect_ratio={final_aspect_ratio}, duration={final_duration}, references={len(references or [])}")
-        
-        # 3. Generate Asset - Route to appropriate provider
-        provider = model_config.get("provider") if model_config else "FAL"
-        # Legacy fallback if provider is not in DB but we know it's Replicate
-        if not model_config and ("kling" in str(model) or "veo" in str(model)) and "fal" not in str(model): 
-             # Check if it looks like a replicate path or we assume legacy replicate
-             pass 
+                # Prioritize DB api_path over payload model
+                if model_config.get("api_path"):
+                    model = model_config.get("api_path")
 
-        if provider == "REPLICATE":
-            logger.info("Using Replicate Provider")
-            # Use Replicate API
-            replicate_params = {}
-            if parameters:
-                replicate_params.update(parameters)
-            if final_aspect_ratio:
-                replicate_params["aspect_ratio"] = final_aspect_ratio
-            if final_duration:
-                # Convert duration string to seconds for Replicate
-                duration_seconds = int(final_duration.replace("s", ""))
-                replicate_params["duration"] = duration_seconds
-            
-            temp_url = replicate_service.generate_with_replicate(
-                model_path=model,
+        provider_name = model_config.get("provider", "FAL") if model_config else "FAL"
+        
+        # Legacy: Detect Replicate hardcoded models if not in DB
+        if not model_config and ("kling" in str(model) or "veo" in str(model)) and "fal" not in str(model):
+             provider_name = "REPLICATE"
+
+        logger.info(f"Using Provider: {provider_name} for model: {model}")
+
+        # 2. Get Provider
+        provider = ProviderFactory.get_provider(provider_name)
+        
+        # 3. Resolve Parameters (Legacy + Dynamic)
+        final_ar = aspect_ratio
+        if parameters and "aspect_ratio" in parameters:
+             final_ar = parameters["aspect_ratio"]
+        if not final_ar:
+             final_ar = "1:1" if type == "image" else "16:9"
+
+        # 4. Generate
+        temp_url = ""
+        if type == "video":
+            temp_url = provider.generate_video(
                 prompt=prompt,
-                parameters=replicate_params,
-                references=references
+                model_path=model,
+                duration=duration or "5s",
+                aspect_ratio=final_ar,
+                references=references,
+                parameters=parameters
             )
-        elif provider == "OPENROUTER" or provider == "GOOGLE":
-            logger.info(f"Using OpenRouter Provider (for {provider})")
-            
-            # Use OpenRouter API
-            # Note: Explicitly check for video vs image
-            if type == "video":
-                # Video support is experimental/limited on OpenRouter via standard API, 
-                # but we will try calling the service which might implement specific logic or fail gracefully
-                temp_url = openrouter_service.generate_video(prompt, model, final_duration, final_aspect_ratio, parameters)
-            else:
-                temp_url = openrouter_service.generate_image(prompt, model, final_aspect_ratio, parameters, num_images)
         else:
-            logger.info(f"Using Fal.ai Provider (Default) for model {model}")
-            # Use Fal.ai (default)
-            if type == "video":
-                temp_url = fal_ai.generate_video(prompt, model, final_duration, final_aspect_ratio, references, parameters)
-            else:
-                temp_url = fal_ai.generate_image(prompt, model, final_aspect_ratio, references, parameters, resolution, num_images)
+            temp_url = provider.generate_image(
+                prompt=prompt,
+                model_path=model,
+                aspect_ratio=final_ar,
+                references=references,
+                parameters=parameters,
+                resolution=resolution,
+                num_images=num_images
+            )
             
         logger.info(f"Generation successful. Temp URL: {temp_url}")
 
-        # 2. Upload to R2
+        # 5. Upload to R2
         final_url = storage.upload_to_r2(temp_url)
         logger.info(f"Upload successful. Final URL: {final_url}")
         
-        # 3. Update Supabase
+        # 6. Update Database
         supabase.table("generations").update({
             "status": "COMPLETED",
             "result_url": final_url
         }).eq("id", generation_id).execute()
         
-        logger.info(f"Generation {generation_id} completed successfully.")
+        logger.info(f"Task {generation_id} Completed.")
 
     except Exception as e:
         logger.error(f"Generation {generation_id} failed: {e}", exc_info=True)
-
         supabase.table("generations").update({
-            "status": "FAILED",
-            # Optionally store error message in a new column if schema allows
+            "status": "FAILED"
         }).eq("id", generation_id).execute()
 
 @router.post("/generate")
@@ -163,8 +133,8 @@ async def generate_image(request: GenerateRequest, background_tasks: BackgroundT
             if model_response.data and len(model_response.data) > 0:
                 model_config = model_response.data[0]
                 cost = model_config.get("cost_per_gen", cost)
-                # Update model to use api_path if available
-                if not request.model:
+                # Update model to use api_path if available (Prioritize DB config over frontend legacy string)
+                if model_config.get("api_path"):
                     request.model = model_config.get("api_path")
         elif request.model:
             # Legacy: use hardcoded costs based on model name

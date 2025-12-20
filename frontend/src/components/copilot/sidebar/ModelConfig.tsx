@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { AiModel } from "@/hooks/useAiModels";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +11,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { DynamicForm } from "@/components/canvas/nodes/DynamicForm";
 
 interface ModelConfigProps {
     chatModels: AiModel[];
@@ -24,6 +25,11 @@ interface ModelConfigProps {
     onVideoModelChange: (id: string) => void;
     chatModelsLoading?: boolean;
     chatModelsError?: Error | null;
+    // Params
+    imageModelParams: Record<string, any>;
+    onImageModelParamsChange: (params: Record<string, any>) => void;
+    videoModelParams: Record<string, any>;
+    onVideoModelParamsChange: (params: Record<string, any>) => void;
 }
 
 export function ModelConfig({
@@ -38,8 +44,23 @@ export function ModelConfig({
     onVideoModelChange,
     chatModelsLoading,
     chatModelsError,
+    imageModelParams,
+    onImageModelParamsChange,
+    videoModelParams,
+    onVideoModelParamsChange
 }: ModelConfigProps) {
     const [isAuto, setIsAuto] = useState(false);
+
+    const activeImageModel = useMemo(() => imageModels.find(m => m.id === selectedImageModel), [imageModels, selectedImageModel]);
+    const activeVideoModel = useMemo(() => videoModels.find(m => m.id === selectedVideoModel), [videoModels, selectedVideoModel]);
+
+    const handleImageParamChange = (key: string, value: any) => {
+        onImageModelParamsChange({ ...imageModelParams, [key]: value });
+    };
+
+    const handleVideoParamChange = (key: string, value: any) => {
+        onVideoModelParamsChange({ ...videoModelParams, [key]: value });
+    };
 
     return (
         <div className="space-y-6 font-sans">
@@ -112,45 +133,75 @@ export function ModelConfig({
                     </TabsList>
 
                     <div className="pt-3">
-                        <TabsContent value="image" className="mt-0 space-y-2">
+                        <TabsContent value="image" className="mt-0 space-y-4">
                             {isAuto ? (
                                 <div className="text-xs text-gray-500 text-center py-6 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-gray-300" />
                                     <span>AI 将根据需求自动选择最佳绘图模型</span>
                                 </div>
                             ) : (
-                                <div className="grid gap-2">
-                                    {imageModels.map(model => (
-                                        <ModelCard
-                                            key={model.id}
-                                            model={model}
-                                            isSelected={selectedImageModel === model.id}
-                                            onSelect={() => onImageModelChange(model.id)}
-                                            icon={ImageIcon}
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="grid gap-2">
+                                        {imageModels.map(model => (
+                                            <ModelCard
+                                                key={model.id}
+                                                model={model}
+                                                isSelected={selectedImageModel === model.id}
+                                                onSelect={() => onImageModelChange(model.id)}
+                                                icon={ImageIcon}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Dynamic Params for Image Model */}
+                                    {activeImageModel && activeImageModel.parameters_schema && activeImageModel.parameters_schema.length > 0 && (
+                                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-2">
+                                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Parameters</p>
+                                            <DynamicForm
+                                                schema={activeImageModel.parameters_schema}
+                                                values={imageModelParams}
+                                                onChange={handleImageParamChange}
+                                                className="flex-wrap gap-2 max-w-full"
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </TabsContent>
 
-                        <TabsContent value="video" className="mt-0 space-y-2">
+                        <TabsContent value="video" className="mt-0 space-y-4">
                             {isAuto ? (
                                 <div className="text-xs text-gray-500 text-center py-6 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center gap-2">
                                     <Clapperboard className="w-4 h-4 text-gray-300" />
                                     <span>AI 将根据需求自动选择最佳视频模型</span>
                                 </div>
                             ) : (
-                                <div className="grid gap-2">
-                                    {videoModels.map(model => (
-                                        <ModelCard
-                                            key={model.id}
-                                            model={model}
-                                            isSelected={selectedVideoModel === model.id}
-                                            onSelect={() => onVideoModelChange(model.id)}
-                                            icon={Clapperboard}
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="grid gap-2">
+                                        {videoModels.map(model => (
+                                            <ModelCard
+                                                key={model.id}
+                                                model={model}
+                                                isSelected={selectedVideoModel === model.id}
+                                                onSelect={() => onVideoModelChange(model.id)}
+                                                icon={Clapperboard}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Dynamic Params for Video Model */}
+                                    {activeVideoModel && activeVideoModel.parameters_schema && activeVideoModel.parameters_schema.length > 0 && (
+                                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-2">
+                                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Parameters</p>
+                                            <DynamicForm
+                                                schema={activeVideoModel.parameters_schema}
+                                                values={videoModelParams}
+                                                onChange={handleVideoParamChange}
+                                                className="flex-wrap gap-2 max-w-full"
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </TabsContent>
                     </div>

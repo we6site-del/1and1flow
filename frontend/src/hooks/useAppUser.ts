@@ -75,5 +75,31 @@ export function useAppUser() {
         };
     }, []);
 
+    // 2. Realtime subscription for profile updates (Credits!)
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`profile-updates-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${user.id}`
+                },
+                (payload) => {
+                    console.log("Profile updated:", payload.new);
+                    setProfile(payload.new);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, supabase]);
+
     return { user, profile, loading };
 }

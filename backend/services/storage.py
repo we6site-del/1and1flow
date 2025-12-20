@@ -29,18 +29,11 @@ def get_s3_client():
 
 def upload_to_r2(file_url: str, folder: str = "generations") -> str:
     """
-    Downloads a file from a URL and uploads it to Cloudflare R2.
-    Returns the public URL of the uploaded file.
-    """
-import base64 
-
-# ... (existing imports)
-
-def upload_to_r2(file_url: str, folder: str = "generations") -> str:
-    """
     Downloads a file from a URL (or data URI) and uploads it to Cloudflare R2.
     Returns the public URL of the uploaded file.
     """
+    import base64
+    
     try:
         # 1. Handle Data URI
         if file_url.startswith("data:"):
@@ -52,15 +45,13 @@ def upload_to_r2(file_url: str, folder: str = "generations") -> str:
                 return upload_bytes_to_r2(file_content, content_type, folder)
             except Exception as e:
                 print(f"Data URI parsing failed: {e}")
-                # Fallback or re-raise? If we can't parse it, we can't upload it.
-                # But maybe it's cleaner to let the exception handler catch it.
                 raise e
 
         # 2. Download the file (Standard URL)
-        response = requests.get(file_url, stream=True)
+        response = requests.get(file_url, stream=True, timeout=30)
         response.raise_for_status()
         
-        content_type = response.headers.get('content-type')
+        content_type = response.headers.get('content-type', 'image/png')
         extension = "png"
         if "video" in content_type:
             extension = "mp4"
@@ -70,7 +61,7 @@ def upload_to_r2(file_url: str, folder: str = "generations") -> str:
         filename = f"{uuid.uuid4()}.{extension}"
         key = f"{folder}/{filename}"
 
-        # 2. Upload to R2
+        # 3. Upload to R2
         s3 = get_s3_client()
         s3.upload_fileobj(
             response.raw,
@@ -79,12 +70,11 @@ def upload_to_r2(file_url: str, folder: str = "generations") -> str:
             ExtraArgs={'ContentType': content_type}
         )
 
-        # 3. Construct Public URL
+        # 4. Construct Public URL
         if R2_PUBLIC_DOMAIN:
             return f"{R2_PUBLIC_DOMAIN}/{key}"
         else:
             # Fallback to R2 dev URL or similar if public domain not set
-            # Ideally user sets R2_PUBLIC_DOMAIN
             return f"{R2_ENDPOINT_URL}/{R2_BUCKET_NAME}/{key}"
 
     except Exception as e:

@@ -10,6 +10,7 @@ import google.generativeai as genai
 from services.model_router import model_router
 import asyncio
 import httpx
+from services.supabase_client import supabase
 
 router = APIRouter()
 
@@ -25,7 +26,6 @@ openrouter_client = AsyncOpenAI(
 ) if openrouter_key else None
 
 
-
 class Message(BaseModel):
     role: str
     content: Union[str, List[Any], Any]
@@ -33,6 +33,10 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     model: str = "gpt-4o"
+    preferredImageModel: Optional[str] = None
+    preferredVideoModel: Optional[str] = None
+    imageModelParams: Optional[Dict[str, Any]] = None
+    videoModelParams: Optional[Dict[str, Any]] = None
 
 # Tool Definitions
 TOOLS = [
@@ -265,8 +269,6 @@ def convert_tools_to_gemini(tools):
         
     # Return list of Tools (Gemini expects list of Tool objects or dicts)
     return [{"function_declarations": function_declarations}]
-
-
 
 async def chat_with_google(model_name: str, messages: List[dict]):
     """
@@ -503,12 +505,6 @@ async def chat_with_google(model_name: str, messages: List[dict]):
     # We use stream=True but need to buffer to check for function calls
     print(f"Sending message to Google model: {model_name}")
     
-    # print(f"DEBUG: Model initialized. Sending message...")
-
-    # For streaming, we need to correctly use chat session or generate_content
-    # Gemini python lib manages history automatically in ChatSession, but here we reconstructed history manually.
-    # To use history, we create a chat session with history (excluding last message) and send last message.
-    
     try:
         # Get the last user message to send
         if last_message:
@@ -621,57 +617,77 @@ async def chat_endpoint(request: ChatRequest):
             content_type = type(msg.get("content")).__name__
             print(f"DEBUG: Processed message {i}: role={msg.get('role')}, content_type={content_type}")
 
-        # Determine which client to use
+        # 1. Fetch Model Config from Database
+        active_client = client
+        model_provider = "OPENAI"
         
-        # Dispatch to Google Gemini Handler if model starts with models/gemini
-        if request.model.startswith("models/gemini"):
+        try:
+            # Query Supabase for the specific model
+            model_response = supabase.table("ai_models").select("*").eq("api_path", request.model).execute()
+            db_model = model_response.data[0] if model_response.data else None
+            
+            if db_model:
+                model_provider = db_model.get("provider", "OPENAI").upper()
+                print(f"DEBUG: Resolved model {request.model} to provider {model_provider}")
+            else:
+                # Fallback heuristics
+                print(f"DEBUG: Model {request.model} not found in DB, using heuristics")
+                if request.model.startswith("models/gemini"):
+                     model_provider = "GOOGLE"
+                elif "/" in request.model:
+                     model_provider = "OPENROUTER"
+                elif request.model.startswith("gpt"):
+                     model_provider = "OPENAI"
+                else:
+                     model_provider = "OPENAI"
+        except Exception as e:
+            print(f"Error fetching model config: {e}")
+            # Fallback heuristics on DB error
+            if request.model.startswith("models/gemini"):
+                    model_provider = "GOOGLE"
+            elif "/" in request.model:
+                    model_provider = "OPENROUTER"
+            else:
+                    model_provider = "OPENAI"
+
+        # 2. Select Client based on Provider
+        if model_provider == "GOOGLE":
              return StreamingResponse(
                  chat_with_google(request.model, processed_messages),
                  media_type="text/event-stream"
              )
-
-        active_client = client
-        use_openrouter = False
         
-        # Check for OpenRouter models (containing slash but not starting with models/gemini)
-        # Common OpenRouter format: vendor/model-name
-        if "/" in request.model and not request.model.startswith("models/gemini"):
+        elif model_provider == "OPENROUTER":
             if not openrouter_client:
                 raise HTTPException(status_code=500, detail="OpenRouter API key not configured")
-            print(f"DEBUG: Using OpenRouter for model {request.model}")
             active_client = openrouter_client
-            use_openrouter = True
-        else:
+            print(f"DEBUG: Using OpenRouter client")
+            
+        elif model_provider == "OPENAI":
              if not client:
                 raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+             active_client = client
+             print(f"DEBUG: Using OpenAI client")
 
         # --- Enhanced Message Processing for Compatibility ---
         
         final_messages = []
         
         # 1. Handle System Prompt
-        # For OpenRouter/Gemini, it's often safer to prepend system prompt to first user message 
-        # or use 'system' role if supported. But to be safe against "text parts" errors, we'll prepend.
         current_system_prompt = SYSTEM_PROMPT
-        
-        # Initialize with processed_messages (which has system prompt as first item currently)
-        # We need to flatten/merge this.
         
         temp_messages = []
         for m in request.messages:
              content = m.content
-             # Initial cleaning
              if not isinstance(content, str):
                  content = str(content) if content else ""
              
-             # Image Tag Parsing (Keep this logic)
              if "[IMAGE]" in content and "[/IMAGE]" in content:
                  parts = content.split("[IMAGE]")
                  text_part = parts[0].strip()
                  image_part = parts[1].split("[/IMAGE]")[0].strip()
                  
                  new_content = []
-                 # Always add text part (space if empty)
                  text_content = str(text_part) if text_part else " "
                  new_content.append({"type": "text", "text": text_content})
                  
@@ -688,19 +704,14 @@ async def chat_endpoint(request: ChatRequest):
                      temp_messages.append({"role": m.role, "content": str(content).strip()})
         
         # 2. Merge Strategies
-        # If using OpenRouter, we merge system prompt into first user message to avoid 'system' role issues
-        # and merge consecutive same-role messages.
-        
         merged_messages = []
         
-        # Merge System Prompt into the first message if possible
         if temp_messages:
             first_msg = temp_messages[0]
             if first_msg["role"] == "user":
                 if isinstance(first_msg["content"], str):
                     first_msg["content"] = current_system_prompt + "\n\n" + first_msg["content"]
                 elif isinstance(first_msg["content"], list):
-                    # Find text part
                     text_found = False
                     for part in first_msg["content"]:
                         if part.get("type") == "text":
@@ -708,13 +719,10 @@ async def chat_endpoint(request: ChatRequest):
                             text_found = True
                             break
                     if not text_found:
-                        # Insert at beginning
                         first_msg["content"].insert(0, {"type": "text", "text": current_system_prompt + "\n\n"})
             else:
-                # First message is not user (rare, maybe assistant?), prepend a user message with system prompt
                 merged_messages.append({"role": "user", "content": current_system_prompt})
         else:
-            # No messages? Just send system prompt as user message
              merged_messages.append({"role": "user", "content": current_system_prompt})
 
         for msg in temp_messages:
@@ -724,46 +732,28 @@ async def chat_endpoint(request: ChatRequest):
             
             last_msg = merged_messages[-1]
             
-            # Merge consecutive same-role messages
             if last_msg["role"] == msg["role"]:
-                # If both are strings, join them
                 if isinstance(last_msg["content"], str) and isinstance(msg["content"], str):
                     last_msg["content"] += "\n\n" + msg["content"]
-                # If one is list (has image), we need to make last_msg a list and append
                 else:
-                    # Convert last_msg to list if it isn't
                     if isinstance(last_msg["content"], str):
                         last_msg["content"] = [{"type": "text", "text": last_msg["content"]}]
                     
-                    # Append new content
                     if isinstance(msg["content"], str):
                         last_msg["content"].append({"type": "text", "text": msg["content"]})
                     elif isinstance(msg["content"], list):
                         last_msg["content"].extend(msg["content"])
         
-        # FINAL PASS: Flatten content if it's a list with only text parts (OpenRouter GLM fix)
-        # GLM-4.6V throws "text parts expect a string value" if sent as structured list without images?
-        # Or maybe it just prefers string. Safer to flatten.
         for msg in merged_messages:
             if isinstance(msg["content"], list):
-                # Check if it only contains text
                 if all(part.get("type") == "text" for part in msg["content"]):
-                    # Join all text parts into a single string
                     msg["content"] = "\n\n".join(part["text"] for part in msg["content"])
 
         processed_messages = merged_messages
         
         # Debug Payload
-        import json
         payload_debug = json.dumps(processed_messages, default=str)
-        print(f"DEBUG: Processed Messages Payload: {payload_debug}")
-        
-        # Write to file for inspection
-        try:
-            with open("debug_payload.json", "w") as f:
-                f.write(payload_debug)
-        except Exception as e:
-            print(f"Failed to write debug logging: {e}")
+        print(f"DEBUG: Processed Messages Payload: payload_debug")
 
         # Smart Model Selection with Auto-Fallback
         attempted_models = []
@@ -771,33 +761,41 @@ async def chat_endpoint(request: ChatRequest):
         
         # Load available chat models
         try:
-            with open("backend/data/chat_models.json", "r") as f:
-                all_chat_models = json.load(f)
+            # Fetch all active chat models
+            all_models_resp = supabase.table("ai_models").select("api_path, name, provider").eq("type", "CHAT").eq("is_active", True).execute()
+            all_chat_models = all_models_resp.data if all_models_resp.data else []
         except:
             all_chat_models = []
         
-        # Try requested model first, then fallback to available models
-        models_to_try = [{"api_path": request.model, "name": "Requested"}]
+        # Try requested model first, then fallback
+        models_to_try = [{"api_path": request.model, "provider": model_provider}]
         
-        # Add other models as fallback
-        for model in all_chat_models:
-            if model["api_path"] != request.model:
-                models_to_try.append(model)
-        
+        for m in all_chat_models:
+             if m["api_path"] != request.model:
+                 models_to_try.append(m)
+
         response = None
         for model_info in models_to_try:
             model_path = model_info["api_path"]
+            current_provider = model_info.get("provider", "OPENAI").upper()
             
-            # Skip if model is in cooldown
+            current_client = active_client
+            if current_provider == "OPENROUTER" and openrouter_client:
+                current_client = openrouter_client
+            elif current_provider == "OPENAI" and client:
+                current_client = client
+            if current_provider == "GOOGLE":
+                 continue 
+
             if not model_router.is_model_available(model_path):
                 print(f"Skipping {model_path} (in cooldown)")
                 continue
             
             try:
-                print(f"Attempting model: {model_path}")
+                print(f"Attempting model: {model_path} via {current_provider}")
                 attempted_models.append(model_path)
                 
-                response = await active_client.chat.completions.create(
+                response = await current_client.chat.completions.create(
                     model=model_path,
                     messages=processed_messages,
                     tools=TOOLS,
@@ -805,7 +803,6 @@ async def chat_endpoint(request: ChatRequest):
                     stream=False
                 )
                 
-                # Success! Break out of loop
                 print(f"✓ Model {model_path} succeeded")
                 break
                 
@@ -813,17 +810,14 @@ async def chat_endpoint(request: ChatRequest):
                 error_str = str(e).lower()
                 last_error = e
                 
-                # Check if it's a rate limit error
                 if "429" in error_str or "rate limit" in error_str or "quota" in error_str:
                     print(f"✗ Model {model_path} rate limited")
                     model_router.mark_model_failed(model_path)
                 else:
                     print(f"✗ Model {model_path} failed: {str(e)[:100]}")
                 
-                # Continue to next model
                 continue
         
-        # If all models failed
         if response is None:
             print(f"All models failed. Attempted: {attempted_models}")
             cooldown_info = model_router.get_cooldown_info()
@@ -848,50 +842,29 @@ async def chat_endpoint(request: ChatRequest):
         message = response.choices[0].message
 
         if message.tool_calls:
-            # Handle tool calls
-            tool_outputs = []
             for tool_call in message.tool_calls:
                 result = await execute_tool(tool_call)
-                # Format as AI SDK stream
                 async def tool_response_generator():
                     yield format_ai_sdk_stream(str(result))
                 return StreamingResponse(tool_response_generator(), media_type="text/event-stream")
         
         else:
-            # No tool calls, just stream the text response we already fetched
-            # Optimization: Do NOT call API again with stream=True. Just yield the text we have.
             content = message.content or ""
             
             async def text_response_generator():
-                # Simulate streaming for frontend compatibility
-                 # Chunking it slightly for better UX (optional)
                 chunk_size = 100
                 for i in range(0, len(content), chunk_size):
                     chunk = content[i:i+chunk_size]
                     yield format_ai_sdk_stream(chunk)
-                    await asyncio.sleep(0.01) # Tiny delay
+                    await asyncio.sleep(0.01)
             
             return StreamingResponse(text_response_generator(), media_type="text/event-stream")
 
     except Exception as e:
         print(f"Chat Endpoint Error: {e}")
-        try:
-            with open("backend/backend_error.log", "w") as f:
-                import traceback
-                f.write(f"Error: {e}\n")
-                f.write(traceback.format_exc())
-                if hasattr(e, 'response') and hasattr(e.response, 'text'):
-                     f.write(f"\nResponse Body: {e.response.text}\n")
-        except:
-             pass
-
-        if hasattr(e, 'response') and hasattr(e.response, 'text'):
-             print(f"Chat Endpoint Error Body: {e.response.text}")
-
         import traceback
         traceback.print_exc()
         
-        # Check for OpenAI/OpenRouter specific errors
         error_str = str(e)
         if "429" in error_str or "rate limit" in error_str.lower() or "quota" in error_str.lower():
              model_name = request.model

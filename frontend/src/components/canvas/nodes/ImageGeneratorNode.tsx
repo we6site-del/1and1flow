@@ -64,11 +64,14 @@ export function ImageGeneratorNode({ id, selected, data, onGenerate, onUpdateRef
 
     // Initialize modelId if not set and models are loaded
     useEffect(() => {
+        console.log("[ImageGeneratorNode] useEffect - modelId:", modelId, "models.length:", models.length, "data?.modelId:", data?.modelId, "data?.model:", data?.model);
         if (!modelId && models.length > 0) {
             const defaultModelId = models[0].id;
+            console.log("[ImageGeneratorNode] Setting default modelId:", defaultModelId);
             setModelId(defaultModelId);
             // Only update parent if we are setting a default and it wasn't set
             if (!data?.modelId && !data?.model) {
+                console.log("[ImageGeneratorNode] Calling onUpdateModel with:", defaultModelId);
                 onUpdateModel?.(defaultModelId);
             }
         }
@@ -454,6 +457,7 @@ export function ImageGeneratorNode({ id, selected, data, onGenerate, onUpdateRef
                                 if (modelId && !isGenerating) {
                                     const cost = selectedModel?.cost_per_gen ?? 0;
                                     if (!checkCredits(cost)) return;
+                                    console.log("[ImageGeneratorNode] Calling onGenerate with modelId:", modelId, "prompt:", prompt, "parameters:", parameters);
                                     onGenerate?.(prompt, modelId, parameters);
                                 }
                             }}
