@@ -72,5 +72,10 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "zod-validation-error": "3.5.1"
+  },
+  "overrides": {
+    "tldraw": "$tldraw",
+    "react": "$react",
+    "react-dom": "$react-dom"
   }
 }

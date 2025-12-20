@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  // Ensure we transpile tldraw to avoid dual-package hazard (ESM vs CJS)
+  transpilePackages: ['tldraw'],
   images: {
     remotePatterns: [
       {
@@ -40,6 +42,15 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       "zod/v3": require.resolve("zod"),
       "zod/v4": require.resolve("zod"),
+      // Force tldraw packages to resolve to the same instance
+      "@tldraw/editor": require.resolve("@tldraw/editor"),
+      "@tldraw/store": require.resolve("@tldraw/store"),
+      "@tldraw/state": require.resolve("@tldraw/state"),
+      "@tldraw/utils": require.resolve("@tldraw/utils"),
+      "@tldraw/tlschema": require.resolve("@tldraw/tlschema"),
+      "tldraw": require.resolve("tldraw"),
+      "react": require.resolve("react"),
+      "react-dom": require.resolve("react-dom"),
     };
     return config;
   },

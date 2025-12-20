@@ -38,8 +38,10 @@ fi
 echo -e "${GREEN}✓ 后端环境检查完成${NC}"
 
 # 3. 构建前端
-echo -e "\n${YELLOW}>> 步骤 3: 构建前端${NC}"
+echo -e "\n${YELLOW}>> 步骤 3: 构建前端 (Clean Install)${NC}"
 cd $PROJECT_DIR/frontend
+# 强制清理以解决 Tldraw 依赖冲突
+rm -rf .next node_modules package-lock.json
 npm install --legacy-peer-deps
 npm run build
 echo -e "${GREEN}✓ 前端构建完成${NC}"
