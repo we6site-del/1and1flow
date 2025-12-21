@@ -8,10 +8,25 @@ pm2 delete backend || true
 echo "2. 使用正确的参数启动后端..."
 # Critical: --proxy-headers tells Uvicorn to trust X-Forwarded-* headers
 # Critical: --forwarded-allow-ips "*" allows Nginx (on localhost or internal IP) to be trusted
-CONDA_CMD="conda run -n 11flow uvicorn backend.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
 
-echo "执行命令: pm2 start \"$CONDA_CMD\" --name \"backend\""
-pm2 start "$CONDA_CMD" --name "backend"
+# PM2 doesn't inherit conda init, so we use absolute path
+# Assuming conda is installed at /root/miniconda3
+CONDA_PATH="/root/miniconda3"
+PYTHON_PATH="$CONDA_PATH/envs/11flow/bin/python"
+
+# Check if conda environment exists
+if [ ! -f "$PYTHON_PATH" ]; then
+    echo "❌ 错误：找不到 conda 环境 11flow"
+    echo "   请确认 conda 环境路径: $PYTHON_PATH"
+    exit 1
+fi
+
+cd /var/www/11flow/backend
+
+START_CMD="$PYTHON_PATH -m uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
+
+echo "执行命令: pm2 start \"$START_CMD\" --name \"backend\""
+pm2 start "$START_CMD" --name "backend"
 
 echo "3. 保存 PM2 配置..."
 pm2 save
