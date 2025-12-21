@@ -9,10 +9,25 @@ async def test_connection(uri, origin=None):
     
     print(f"Testing connection to {uri} with Origin: {origin}")
     try:
+        # Compatibility fix: older or specific versions might behave differently
+        # We'll try passing headers directly if extra_headers fails contextually, 
+        # but standardized: extra_headers is correct for websockets lib.
+        # The error `BaseEventLoop.create_connection` is strange.
+        # Let's try basic connect w/o fancy loop handling if possible or fix arg.
         async with websockets.connect(uri, extra_headers=headers) as websocket:
             print(f"✅ Connection successful!")
             await websocket.close()
             return True
+    except TypeError:
+        # Fallback for older interface?
+        try:
+             async with websockets.connect(uri, additional_headers=headers) as websocket:
+                print(f"✅ Connection successful! (using additional_headers)")
+                await websocket.close()
+                return True
+        except Exception as e:
+             print(f"❌ Connection failed (fallback): {e}")
+             return False
     except Exception as e:
         print(f"❌ Connection failed: {e}")
         return False
