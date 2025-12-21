@@ -25,9 +25,7 @@ export async function updateSession(request: NextRequest) {
                         // 确保 Cookie 在生产环境中正确配置域名
                         const cookieOptions = {
                             ...options,
-                            domain: process.env.NODE_ENV === 'production'
-                                ? '.lunyee.cn'
-                                : undefined,
+                            domain: process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined,
                             sameSite: 'lax' as const,
                             secure: process.env.NODE_ENV === 'production',
                         };
