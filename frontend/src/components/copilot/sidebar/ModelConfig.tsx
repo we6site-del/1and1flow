@@ -90,7 +90,7 @@ export function ModelConfig({
                             <SelectValue placeholder="Select a brain" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-gray-100 shadow-xl">
-                            {chatModels.map((model) => (
+                            {chatModels.filter(m => m.api_path && m.id).map((model) => (
                                 <SelectItem key={model.id} value={model.api_path} className="rounded-lg my-0.5 cursor-pointer focus:bg-gray-50">
                                     <div className="flex items-center gap-2">
                                         {model.icon_url && (
@@ -109,7 +109,7 @@ export function ModelConfig({
                 <p className="text-[11px] text-gray-400 px-1">
                     负责理解意图、编写提示词和控制工具调用。
                 </p>
-            </div>
+            </div >
 
             <div className="h-px bg-gray-100" />
 
@@ -207,7 +207,7 @@ export function ModelConfig({
                     </div>
                 </Tabs>
             </div>
-        </div>
+        </div >
     );
 }
 
