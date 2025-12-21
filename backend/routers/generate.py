@@ -25,7 +25,7 @@ class GenerateRequest(BaseModel):
 
 from services import fal_ai, storage, replicate_service, openrouter_service
 
-def process_generation_task(
+async def process_generation_task(
     generation_id: str, 
     prompt: str, 
     type: str, 
@@ -40,6 +40,7 @@ def process_generation_task(
 ):
     """
     Executes AI generation using Unified Provider Architecture.
+    Async 2025 Standard.
     """
     from providers.factory import ProviderFactory
 
@@ -56,28 +57,28 @@ def process_generation_task(
                 if model_config.get("api_path"):
                     model = model_config.get("api_path")
 
+        # 2. Determine Provider from DB Configuration
         provider_name = model_config.get("provider", "FAL") if model_config else "FAL"
         
-        # Legacy: Detect Replicate hardcoded models if not in DB
-        if not model_config and ("kling" in str(model) or "veo" in str(model)) and "fal" not in str(model):
-             provider_name = "REPLICATE"
-
+        # NOTE: Removed hardcoded legacy fallback for Replicate. 
+        # All models must be correctly configured in "ai_models" table with "provider" column.
+        
         logger.info(f"Using Provider: {provider_name} for model: {model}")
 
-        # 2. Get Provider
+        # 3. Get Async Provider
         provider = ProviderFactory.get_provider(provider_name)
         
-        # 3. Resolve Parameters (Legacy + Dynamic)
+        # 4. Resolve Parameters (Legacy + Dynamic)
         final_ar = aspect_ratio
         if parameters and "aspect_ratio" in parameters:
              final_ar = parameters["aspect_ratio"]
         if not final_ar:
              final_ar = "1:1" if type == "image" else "16:9"
 
-        # 4. Generate
+        # 5. Generate (Async Wait)
         temp_url = ""
         if type == "video":
-            temp_url = provider.generate_video(
+            temp_url = await provider.generate_video(
                 prompt=prompt,
                 model_path=model,
                 duration=duration or "5s",
@@ -86,7 +87,7 @@ def process_generation_task(
                 parameters=parameters
             )
         else:
-            temp_url = provider.generate_image(
+            temp_url = await provider.generate_image(
                 prompt=prompt,
                 model_path=model,
                 aspect_ratio=final_ar,
@@ -98,11 +99,16 @@ def process_generation_task(
             
         logger.info(f"Generation successful. Temp URL: {temp_url}")
 
-        # 5. Upload to R2
-        final_url = storage.upload_to_r2(temp_url)
+        # 6. Upload to R2 (Async wrapper if storage is sync, but storage currently is sync-only in service)
+        # TODO: Refactor storage to async in future. For now, wrap in threadpool if heavy?
+        # storage.upload_to_r2 does requests.get and requests.put usually.
+        # We should wrap it.
+        from fastapi.concurrency import run_in_threadpool
+        final_url = await run_in_threadpool(storage.upload_to_r2, temp_url)
+        
         logger.info(f"Upload successful. Final URL: {final_url}")
         
-        # 6. Update Database
+        # 7. Update Database
         supabase.table("generations").update({
             "status": "COMPLETED",
             "result_url": final_url

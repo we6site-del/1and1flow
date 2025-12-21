@@ -5,10 +5,11 @@ class AIProvider(ABC):
     """
     Abstract Base Class for AI Providers.
     Defines the standard interface for generating images and videos.
+    Updated for 2025 Async Architecture.
     """
 
     @abstractmethod
-    def generate_image(
+    async def generate_image(
         self,
         prompt: str,
         model_path: str,
@@ -19,13 +20,13 @@ class AIProvider(ABC):
         num_images: int = 1
     ) -> str:
         """
-        Generates an image.
+        Generates an image asynchronously.
         Returns the URL of the generated image.
         """
         pass
 
     @abstractmethod
-    def generate_video(
+    async def generate_video(
         self,
         prompt: str,
         model_path: str,
@@ -35,7 +36,7 @@ class AIProvider(ABC):
         parameters: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Generates a video.
+        Generates a video asynchronously.
         Returns the URL of the generated video.
         """
         pass

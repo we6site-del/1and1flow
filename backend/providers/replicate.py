@@ -3,15 +3,38 @@ import replicate
 from .base import AIProvider
 from typing import Dict, Any, Optional, List
 from fastapi import HTTPException
+from utils.logger import logger
+from fastapi.concurrency import run_in_threadpool
 
 class ReplicateProvider(AIProvider):
     def __init__(self):
         token = os.getenv("REPLICATE_API_TOKEN")
         if not token:
-            print("Warning: REPLICATE_API_TOKEN not set")
+            logger.warning("REPLICATE_API_TOKEN not set")
         self.client = replicate.Client(api_token=token)
 
-    def generate_image(
+    async def generate_image(
+        self,
+        prompt: str,
+        model_path: str,
+        aspect_ratio: str = "1:1",
+        references: Optional[List[str]] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        resolution: Optional[str] = None,
+        num_images: int = 1
+    ) -> str:
+        return await run_in_threadpool(
+            self._generate_image_sync,
+            prompt,
+            model_path,
+            aspect_ratio,
+            references,
+            parameters,
+            resolution,
+            num_images
+        )
+
+    def _generate_image_sync(
         self,
         prompt: str,
         model_path: str,
@@ -25,12 +48,9 @@ class ReplicateProvider(AIProvider):
         input_params = {"prompt": prompt}
         
         # Determine aspect ratio handling
-        # Replicate models are diverse. standard Flux on Replicate takes `aspect_ratio` string.
-        # SDXL takes `width` and `height`.
         if "flux" in model_path.lower():
              input_params["aspect_ratio"] = aspect_ratio
         else:
-             # Default fallback for others, might be ignored if not supported
              input_params["aspect_ratio"] = aspect_ratio
 
         if parameters:
@@ -41,7 +61,26 @@ class ReplicateProvider(AIProvider):
 
         return self._run_replicate(model_path, input_params)
 
-    def generate_video(
+    async def generate_video(
+        self,
+        prompt: str,
+        model_path: str,
+        duration: str = "5s",
+        aspect_ratio: str = "16:9",
+        references: Optional[List[str]] = None,
+        parameters: Optional[Dict[str, Any]] = None
+    ) -> str:
+        return await run_in_threadpool(
+             self._generate_video_sync,
+             prompt,
+             model_path,
+             duration,
+             aspect_ratio,
+             references,
+             parameters
+        )
+
+    def _generate_video_sync(
         self,
         prompt: str,
         model_path: str,
@@ -55,7 +94,6 @@ class ReplicateProvider(AIProvider):
         
         # Handle Duration
         if duration:
-             # "5s" -> 5
              try:
                  sec = int(duration.replace("s", ""))
                  input_params["duration"] = sec
@@ -69,17 +107,16 @@ class ReplicateProvider(AIProvider):
             input_params.update(parameters)
             
         if references:
-             # Kling/Gen-3 patterns
              if len(references) >= 2:
                   input_params["start_image"] = references[0]
                   input_params["end_image"] = references[1]
              else:
-                  input_params["image"] = references[0] # or "input_image"
+                  input_params["image"] = references[0]
 
         return self._run_replicate(model_path, input_params)
 
     def _run_replicate(self, model: str, inputs: Dict[str, Any]) -> str:
-        print(f"[REPLICATE] Running {model} with inputs: {inputs}")
+        logger.info(f"[REPLICATE] Running {model} with inputs keys: {list(inputs.keys())}")
         try:
             output = self.client.run(model, input=inputs)
             
@@ -96,5 +133,5 @@ class ReplicateProvider(AIProvider):
             raise Exception(f"Unknown output format: {type(output)}")
             
         except Exception as e:
-            print(f"[REPLICATE] Error: {e}")
+            logger.error(f"[REPLICATE] Error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Replicate error: {str(e)}")
