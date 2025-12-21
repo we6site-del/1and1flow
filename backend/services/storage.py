@@ -35,6 +35,10 @@ def upload_to_r2(file_url: str, folder: str = "generations") -> str:
     import base64
     
     try:
+        if not file_url:
+            print("Error: upload_to_r2 received empty or None file_url")
+            raise ValueError("file_url cannot be empty")
+
         # 1. Handle Data URI
         if file_url.startswith("data:"):
             try:
