@@ -344,6 +344,7 @@ const AiNodeContent = ({ shape }: { shape: IAiNodeShape }) => {
             };
 
             console.log("[AiNodeShape] Sending generation payload:", payload);
+            console.log("[AiNodeShape] About to send fetch request to /api/generate");
 
             const response = await fetch("/api/generate", {
                 method: "POST",
@@ -353,11 +354,19 @@ const AiNodeContent = ({ shape }: { shape: IAiNodeShape }) => {
                 body: JSON.stringify(payload),
             });
 
+            console.log("[AiNodeShape] Fetch request completed. Status:", response.status);
+
             if (!response.ok) {
-                throw new Error("Generation failed");
+                const errorText = await response.text();
+                console.error("[AiNodeShape] Generation request failed:", response.status, errorText);
+                throw new Error(`Generation failed: ${response.status} ${errorText}`);
             }
+
+            const result = await response.json();
+            console.log("[AiNodeShape] Generation request successful:", result);
         } catch (error) {
-            console.error("Generation error:", error);
+            console.error("[AiNodeShape] Generation error:", error);
+            alert(`Generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
             editor.updateShape({
                 id: shape.id,
                 type: "ai-node",
