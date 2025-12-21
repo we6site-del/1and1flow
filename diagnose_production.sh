@@ -61,4 +61,22 @@ else
     echo -e "${RED}❌ Frontend .env.local NOT found at $FRONTEND_ENV${NC}"
 fi
 
+echo -e "\n${YELLOW}[7/6] API Keys Check (Backend)${NC}"
+BACKEND_ENV="/var/www/11flow/backend/.env"
+if [ -f "$BACKEND_ENV" ]; then
+    echo -e "${GREEN}✅ Backend .env found${NC}"
+    if grep -q "FAL_KEY=" "$BACKEND_ENV"; then
+        echo -e "${GREEN}✅ FAL_KEY is set${NC}"
+    else
+        echo -e "${RED}❌ FAL_KEY is MISSING in .env${NC}"
+    fi
+    if grep -q "REPLICATE_API_TOKEN=" "$BACKEND_ENV"; then
+        echo -e "${GREEN}✅ REPLICATE_API_TOKEN is set${NC}"
+    else
+        echo -e "${YELLOW}⚠️  REPLICATE_API_TOKEN is missing (Ignore if not using Replicate)${NC}"
+    fi
+else
+    echo -e "${RED}❌ Backend .env NOT found at $BACKEND_ENV${NC}"
+fi
+
 echo -e "\n${YELLOW}=== Diagnosis Complete ===${NC}"

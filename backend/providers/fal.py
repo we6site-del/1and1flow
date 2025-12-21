@@ -74,12 +74,21 @@ class FalProvider(AIProvider):
         print(f"[FAL] Arguments: {arguments}")
 
         # 6. Submit
-        handler = fal_client.submit(endpoint, arguments=arguments)
-        result = handler.get()
+        try:
+            print(f"[FAL] Submitting to {endpoint} with keys: {list(arguments.keys())}")
+            handler = fal_client.submit(endpoint, arguments=arguments)
+            result = handler.get()
+            print(f"[FAL] Raw Result: {result}")
+        except Exception as e:
+            print(f"[FAL] CRITICAL ERROR: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise e
         
         print(f"[FAL] Result: {result}")
 
         if not result or "images" not in result or not result["images"]:
+            print(f"[FAL] Unexpected result structure: {result}")
             raise Exception("No images returned from Fal.ai")
             
         return result["images"][0]["url"]
