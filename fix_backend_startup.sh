@@ -9,15 +9,12 @@ echo "2. 使用正确的参数启动后端..."
 # Critical: --proxy-headers tells Uvicorn to trust X-Forwarded-* headers
 # Critical: --forwarded-allow-ips "*" allows Nginx (on localhost or internal IP) to be trusted
 
-# PM2 doesn't inherit conda init, so we use absolute path
-# Assuming conda is installed at /root/miniconda3
-CONDA_PATH="/root/miniconda3"
-PYTHON_PATH="$CONDA_PATH/envs/11flow/bin/python"
+# Use system Python (no conda needed)
+PYTHON_PATH="/usr/bin/python3"
 
-# Check if conda environment exists
+# Verify Python exists
 if [ ! -f "$PYTHON_PATH" ]; then
-    echo "❌ 错误：找不到 conda 环境 11flow"
-    echo "   请确认 conda 环境路径: $PYTHON_PATH"
+    echo "❌ 错误：找不到 Python: $PYTHON_PATH"
     exit 1
 fi
 
